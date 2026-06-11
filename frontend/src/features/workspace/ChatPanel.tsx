@@ -25,8 +25,16 @@ export function ChatPanel({ threadId }: ChatPanelProps) {
         agentId={AGENT_ID}
         threadId={threadId}
         className="flex h-full min-h-0 flex-col"
+        // Let users paste / drag-and-drop a UI screenshot or mockup so the agent
+        // can SEE the design and build to match it (multimodal — needs gpt-5).
+        attachments={{
+          enabled: true,
+          accept: 'image/*',
+          maxSize: 10 * 1024 * 1024,
+        }}
         labels={{
-          chatInputPlaceholder: 'Describe a change, or ask Context Space to build…',
+          chatInputPlaceholder:
+            'Describe a change, paste an image, or ask Context Space to build…',
         }}
       />
     </section>

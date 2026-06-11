@@ -42,6 +42,32 @@ def test_ag_messages_to_openai_maps_roles() -> None:
     assert out[2] == {"role": "tool", "tool_call_id": "t1", "content": "result"}
 
 
+def test_multimodal_image_content_converted() -> None:
+    from app.agent import _convert_content
+
+    text = SimpleNamespace(type="text", text="match this UI")
+    image = SimpleNamespace(
+        type="image",
+        source=SimpleNamespace(type="data", value="QUJD", mime_type="image/png"),
+    )
+    out = _convert_content([text, image])
+    assert isinstance(out, list)
+    assert out[0] == {"type": "text", "text": "match this UI"}
+    assert out[1]["type"] == "image_url"
+    assert out[1]["image_url"]["url"] == "data:image/png;base64,QUJD"
+
+
+def test_url_image_source_passthrough() -> None:
+    from app.agent import _convert_content
+
+    image = SimpleNamespace(
+        type="image",
+        source=SimpleNamespace(type="url", value="https://x.test/a.png", mime_type="image/png"),
+    )
+    out = _convert_content([image])
+    assert out[0]["image_url"]["url"] == "https://x.test/a.png"
+
+
 def test_frontend_tools_to_openai() -> None:
     tools = [
         SimpleNamespace(

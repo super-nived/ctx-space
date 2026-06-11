@@ -47,6 +47,56 @@ from app.prompts import SYSTEM_PROMPT
 _MAX_TOOL_ROUNDS = 8
 
 
+def _convert_content(content: Any) -> Any:
+    """Convert AG-UI message content to OpenAI's format.
+
+    AG-UI content is either a plain string or a list of typed input parts
+    (text / image / …). For multimodal messages we map each part to OpenAI's
+    content-part shape so vision-capable models (gpt-5) can SEE attached images.
+    """
+    if content is None:
+        return ""
+    if isinstance(content, str):
+        return content
+    if not isinstance(content, list):
+        return str(content)
+
+    parts: list[dict[str, Any]] = []
+    for part in content:
+        ptype = getattr(part, "type", None) or (
+            part.get("type") if isinstance(part, dict) else None
+        )
+        if ptype == "text":
+            text = getattr(part, "text", None) or (
+                part.get("text") if isinstance(part, dict) else ""
+            )
+            parts.append({"type": "text", "text": text or ""})
+        elif ptype == "image":
+            source = getattr(part, "source", None) or (
+                part.get("source") if isinstance(part, dict) else None
+            )
+            if source is None:
+                continue
+            stype = getattr(source, "type", None) or (
+                source.get("type") if isinstance(source, dict) else None
+            )
+            value = getattr(source, "value", None) or (
+                source.get("value") if isinstance(source, dict) else None
+            )
+            mime = (
+                getattr(source, "mime_type", None)
+                or (source.get("mime_type") if isinstance(source, dict) else None)
+                or "image/png"
+            )
+            if not value:
+                continue
+            # data source -> data URL; url source -> the URL as-is.
+            url = value if stype == "url" else f"data:{mime};base64,{value}"
+            parts.append({"type": "image_url", "image_url": {"url": url}})
+        # Other modalities (audio/video/doc) are ignored for now.
+    return parts or ""
+
+
 def _ag_messages_to_openai(messages: list[Any]) -> list[dict[str, Any]]:
     """Convert AG-UI messages into OpenAI chat-completion message dicts."""
     out: list[dict[str, Any]] = []
@@ -55,7 +105,7 @@ def _ag_messages_to_openai(messages: list[Any]) -> list[dict[str, Any]]:
         if role in ("user", "system", "developer", "assistant"):
             entry: dict[str, Any] = {
                 "role": "system" if role == "developer" else role,
-                "content": getattr(msg, "content", "") or "",
+                "content": _convert_content(getattr(msg, "content", "")),
             }
             tool_calls = getattr(msg, "tool_calls", None)
             if role == "assistant" and tool_calls:
