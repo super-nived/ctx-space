@@ -34,8 +34,10 @@ export function useProjectSync() {
   const [messages, setMessages] = useState<unknown[]>([]);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const creatingRef = useRef(false);
-  // Track previous isRunning to detect run-end transitions.
   const wasRunningRef = useRef(false);
+
+  // agent.isRunning is reactive — reading it here re-renders on every change.
+  const isRunning = agent?.isRunning ?? false;
 
   // Track agent messages so we can persist the conversation.
   useEffect(() => {
@@ -46,28 +48,22 @@ export function useProjectSync() {
     return () => sub.unsubscribe?.();
   }, [agent]);
 
-  // After each run completes, fetch cumulative usage from the backend.
+  // Detect run-end transition via the reactive isRunning value.
   useEffect(() => {
-    if (!agent || !threadId) return;
-    const sub = agent.subscribe({
-      onStateChanged: () => {
-        const running = agent.isRunning ?? false;
-        if (wasRunningRef.current && !running) {
-          // Run just ended — fetch usage from server.
-          void fetch(`${API_BASE}/api/usage?thread_id=${encodeURIComponent(threadId)}`)
-            .then((r) => r.json())
-            .then((data: TokenUsage) => {
-              if (data.cost_usd > 0 || data.input_tokens > 0) {
-                setTokenUsage(data);
-              }
-            })
-            .catch(() => {});
-        }
-        wasRunningRef.current = running;
-      },
-    });
-    return () => sub.unsubscribe?.();
-  }, [agent, threadId, setTokenUsage]);
+    if (!threadId) return;
+    if (wasRunningRef.current && !isRunning) {
+      // Run just ended — fetch real token usage from the backend.
+      void fetch(`${API_BASE}/api/usage?thread_id=${encodeURIComponent(threadId)}`)
+        .then((r) => r.json())
+        .then((data: TokenUsage) => {
+          if ((data.cost_usd ?? 0) > 0 || (data.input_tokens ?? 0) > 0) {
+            setTokenUsage(data);
+          }
+        })
+        .catch(() => {});
+    }
+    wasRunningRef.current = isRunning;
+  }, [isRunning, threadId, setTokenUsage]);
 
   const persist = useCallback(async () => {
     const fileMap: Record<string, string> = {};
