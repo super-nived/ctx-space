@@ -36,6 +36,8 @@ interface ProjectState {
   setPreviewError: (error: PreviewError | null) => void;
   restoreToEdit: (index: number) => void;
   resetProject: () => void;
+  /** Replace the whole FS from a saved project (no edit-history churn). */
+  loadFiles: (name: string, files: Record<string, string>) => void;
 }
 
 /** Build the file map as it existed immediately after the given edit index. */
@@ -121,6 +123,22 @@ export const useProjectStore = create<ProjectState>()(
           activeFilePath: null,
           previewError: null,
         }),
+
+      loadFiles: (name, rawFiles) => {
+        const files: Record<string, ProjectFile> = {};
+        for (const [path, contents] of Object.entries(rawFiles)) {
+          files[path] = { path, contents };
+        }
+        const first = Object.keys(files)[0] ?? null;
+        set({
+          projectName: name,
+          files,
+          edits: [],
+          activeFilePath: first,
+          previewError: null,
+          status: Object.keys(files).length > 0 ? 'ready' : 'idle',
+        });
+      },
     }),
     {
       name: 'ctx-space-project',

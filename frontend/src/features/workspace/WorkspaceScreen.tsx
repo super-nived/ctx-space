@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { useAgentRunner } from '@/features/agent/useAgentRunner';
+import { HistorySidebar } from '@/features/projects/HistorySidebar';
+import { useProjectSync } from '@/features/projects/useProjectSync';
 import { cn } from '@/lib/cn';
 import { useSessionStore } from '@/store/sessionStore';
 
@@ -21,9 +23,13 @@ interface WorkspaceScreenProps {
  */
 export function WorkspaceScreen({ threadId, initialPrompt }: WorkspaceScreenProps) {
   const [mobileView, setMobileView] = useState<'chat' | 'output'>('chat');
+  const [historyOpen, setHistoryOpen] = useState(false);
   const { sendUserMessage, agent } = useAgentRunner();
   const markInitialPromptSent = useSessionStore((s) => s.markInitialPromptSent);
   const sentRef = useRef(false);
+
+  // Persist files + chat to the backend; expose openProject for the sidebar.
+  const { openProject } = useProjectSync();
 
   // Send the landing-screen prompt once the agent is connected (new projects only).
   useEffect(() => {
@@ -39,6 +45,7 @@ export function WorkspaceScreen({ threadId, initialPrompt }: WorkspaceScreenProp
       <TopBar
         mobileView={mobileView}
         onToggleMobileView={() => setMobileView((v) => (v === 'chat' ? 'output' : 'chat'))}
+        onOpenHistory={() => setHistoryOpen(true)}
       />
 
       <div className="grid min-h-0 flex-1 lg:grid-cols-[38fr_62fr]">
@@ -60,6 +67,12 @@ export function WorkspaceScreen({ threadId, initialPrompt }: WorkspaceScreenProp
           <OutputPanel />
         </div>
       </div>
+
+      <HistorySidebar
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        onOpenProject={openProject}
+      />
     </div>
   );
 }

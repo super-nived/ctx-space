@@ -1,17 +1,23 @@
 import { Wordmark } from '@/components/Wordmark';
+import { downloadProjectZip } from '@/features/projects/downloadZip';
 import { useProjectStore } from '@/store/projectStore';
 import { useSessionStore } from '@/store/sessionStore';
 
 interface TopBarProps {
   onToggleMobileView?: () => void;
   mobileView?: 'chat' | 'output';
+  onOpenHistory?: () => void;
 }
 
 /** Slim top bar: wordmark + project name (left); New/History/GitHub/Publish (right). */
-export function TopBar({ onToggleMobileView, mobileView }: TopBarProps) {
+export function TopBar({ onToggleMobileView, mobileView, onOpenHistory }: TopBarProps) {
   const projectName = useProjectStore((s) => s.projectName);
+  const files = useProjectStore((s) => s.files);
   const resetProject = useProjectStore((s) => s.resetProject);
   const resetSession = useSessionStore((s) => s.reset);
+
+  const hasFiles = Object.keys(files).length > 0;
+  const downloadZip = () => downloadProjectZip(projectName, files);
 
   const newProject = () => {
     if (
@@ -60,9 +66,19 @@ export function TopBar({ onToggleMobileView, mobileView }: TopBarProps) {
         </button>
         <button
           type="button"
+          onClick={onOpenHistory}
           className="text-ink-soft hover:bg-surface-2 rounded-md px-2.5 py-1 text-[13px]"
         >
           History
+        </button>
+        <button
+          type="button"
+          onClick={downloadZip}
+          disabled={!hasFiles}
+          title={hasFiles ? 'Download project as .zip' : 'No files to download yet'}
+          className="text-ink-soft hover:bg-surface-2 rounded-md px-2.5 py-1 text-[13px] disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          Download
         </button>
         <button
           type="button"

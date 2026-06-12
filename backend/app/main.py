@@ -16,6 +16,7 @@ from fastapi.responses import StreamingResponse
 
 from app.agent import CtxSpaceAgent
 from app.config import get_settings
+from app.projects import router as projects_router
 
 settings = get_settings()
 agent = CtxSpaceAgent(settings)
@@ -29,6 +30,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Project storage (PocketBase-backed) for multi-project history.
+app.include_router(projects_router)
 
 
 @app.get("/health")

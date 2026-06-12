@@ -43,6 +43,14 @@ class Settings(BaseSettings):
     )
     session_secret: str = Field("change-me", alias="SESSION_SECRET")
 
+    # --- PocketBase (project storage) ---
+    pocketbase_url: str = Field("http://127.0.0.1:8090", alias="POCKETBASE_URL")
+    pocketbase_email: str = Field("", alias="POCKETBASE_EMAIL")
+    pocketbase_password: str = Field("", alias="POCKETBASE_PASSWORD")
+    pocketbase_collection: str = Field(
+        "ctx_space_projects", alias="POCKETBASE_COLLECTION"
+    )
+
     @property
     def allowed_origins_list(self) -> list[str]:
         """CORS origins as a clean list."""

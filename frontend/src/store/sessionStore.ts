@@ -1,20 +1,23 @@
 /**
- * Persists the current project session (thread id + the initial prompt) so a
- * page refresh restores the same conversation. CopilotKit keys its thread by
- * `threadId`, so reusing it reloads the chat history; the project store reloads
- * the files + edit history alongside it.
+ * Tracks the *current* project session: which backend project is open, its
+ * thread id, and the initial prompt for a brand-new project. Persisted locally
+ * so a refresh reopens the same project; the project's files + chat themselves
+ * live in the backend (PocketBase) and are loaded by id.
  */
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 interface SessionState {
+  /** Backend project record id (null until the project is first saved). */
+  projectId: string | null;
   threadId: string | null;
-  /** The very first prompt — sent once when a new project is created. */
+  /** First prompt — sent once when a brand-new project is created. */
   initialPrompt: string | null;
-  /** True once the initial prompt has been dispatched (so refresh won't resend). */
   initialPromptSent: boolean;
 
   startSession: (threadId: string, initialPrompt: string) => void;
+  openExisting: (projectId: string, threadId: string) => void;
+  setProjectId: (projectId: string) => void;
   markInitialPromptSent: () => void;
   reset: () => void;
 }
@@ -22,14 +25,26 @@ interface SessionState {
 export const useSessionStore = create<SessionState>()(
   persist(
     (set) => ({
+      projectId: null,
       threadId: null,
       initialPrompt: null,
       initialPromptSent: false,
 
       startSession: (threadId, initialPrompt) =>
-        set({ threadId, initialPrompt, initialPromptSent: false }),
+        set({ projectId: null, threadId, initialPrompt, initialPromptSent: false }),
+
+      openExisting: (projectId, threadId) =>
+        set({ projectId, threadId, initialPrompt: null, initialPromptSent: true }),
+
+      setProjectId: (projectId) => set({ projectId }),
       markInitialPromptSent: () => set({ initialPromptSent: true }),
-      reset: () => set({ threadId: null, initialPrompt: null, initialPromptSent: false }),
+      reset: () =>
+        set({
+          projectId: null,
+          threadId: null,
+          initialPrompt: null,
+          initialPromptSent: false,
+        }),
     }),
     { name: 'ctx-space-session' },
   ),
