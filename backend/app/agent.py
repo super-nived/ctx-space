@@ -200,6 +200,7 @@ class CtxSpaceAgent:
         self._settings = settings
         self._client = AsyncOpenAI(api_key=settings.openai_api_key)
         self._mcp = McpClient(settings.mcp_server_url, settings.mcp_server_label)
+        self._last_usage: dict[str, Any] = {"input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0}
 
     async def _load_mcp_tools(self) -> list[dict[str, Any]]:
         """Discover DataSpace MCP tools; degrade gracefully if unreachable."""
@@ -237,19 +238,18 @@ class CtxSpaceAgent:
             async for event in self._run_loop(encoder, messages, all_tools, usage_acc):  # type: ignore[arg-type]
                 yield event
 
-            # Emit accumulated token usage as a custom SSE comment so the
-            # frontend can update cost display without a separate API call.
+            # NOTE: usage_acc is returned via the generator's StopIteration value
+            # so main.py's _run_and_track() can read it without emitting any extra
+            # SSE frames (which would confuse CopilotKit's event discriminator).
             total_cost = (
                 usage_acc["input_tokens"] / 1_000_000 * _GPT5_INPUT_PER_M
                 + usage_acc["output_tokens"] / 1_000_000 * _GPT5_OUTPUT_PER_M
             )
-            usage_payload = json.dumps({
-                "type": "USAGE",
+            self._last_usage = {
                 "input_tokens": usage_acc["input_tokens"],
                 "output_tokens": usage_acc["output_tokens"],
                 "cost_usd": round(total_cost, 6),
-            })
-            yield f"data: {usage_payload}\n\n"
+            }
 
             yield encoder.encode(
                 RunFinishedEvent(

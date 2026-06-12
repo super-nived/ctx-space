@@ -52,24 +52,24 @@ def get_usage(thread_id: str) -> dict[str, float]:
 
 
 async def _run_and_track(run_input: RunAgentInput, accept: str | None):
-    """Wrap agent.run() and capture the USAGE frame into _usage."""
+    """Wrap agent.run() and update _usage from agent._last_usage after the stream ends.
+
+    The USAGE data is stored on the agent instance after RUN_FINISHED — we never
+    emit it as a raw SSE frame (that would confuse CopilotKit's event discriminator).
+    """
     tid = run_input.thread_id
     async for chunk in agent.run(run_input, accept):
         yield chunk
-        # Parse our custom USAGE SSE frame to update the server-side store.
-        if chunk.startswith("data:"):
-            try:
-                import json as _json
-                ev = _json.loads(chunk[5:].strip())
-                if ev.get("type") == "USAGE":
-                    prev = _usage.get(tid, {"input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0})
-                    _usage[tid] = {
-                        "input_tokens": prev["input_tokens"] + ev["input_tokens"],
-                        "output_tokens": prev["output_tokens"] + ev["output_tokens"],
-                        "cost_usd": prev["cost_usd"] + ev["cost_usd"],
-                    }
-            except Exception:  # noqa: BLE001
-                pass
+    # After the generator is exhausted (RUN_FINISHED was emitted), read the
+    # usage that agent.run() stored on self._last_usage.
+    usage = getattr(agent, "_last_usage", None)
+    if usage:
+        prev = _usage.get(tid, {"input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0})
+        _usage[tid] = {
+            "input_tokens": prev["input_tokens"] + usage["input_tokens"],
+            "output_tokens": prev["output_tokens"] + usage["output_tokens"],
+            "cost_usd": prev["cost_usd"] + usage["cost_usd"],
+        }
 
 
 @app.post("/")
