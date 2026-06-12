@@ -66,7 +66,7 @@ class PocketBaseClient:
                 "filter": f'owner="{owner}"',
                 "sort": "-updated",
                 "perPage": 100,
-                "fields": "id,name,thread_id,updated,created",
+                "fields": "id,name,thread_id,updated,created,token_usage",
             },
         )
         return resp.json().get("items", [])

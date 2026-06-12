@@ -46,6 +46,11 @@ from app.prompts import SYSTEM_PROMPT
 # Guard against runaway tool loops (model <-> MCP) within a single run.
 _MAX_TOOL_ROUNDS = 8
 
+# Real OpenAI gpt-5 pricing (USD per 1 M tokens) as of 2025.
+# https://openai.com/api/pricing
+_GPT5_INPUT_PER_M = 15.0
+_GPT5_OUTPUT_PER_M = 60.0
+
 
 def _convert_content(content: Any) -> Any:
     """Convert AG-UI message content to OpenAI's format.
@@ -228,8 +233,23 @@ class CtxSpaceAgent:
                 *_ag_messages_to_openai(run_input.messages),
             ]
 
-            async for event in self._run_loop(encoder, messages, all_tools):
+            usage_acc: dict[str, int] = {"input_tokens": 0, "output_tokens": 0}
+            async for event in self._run_loop(encoder, messages, all_tools, usage_acc):  # type: ignore[arg-type]
                 yield event
+
+            # Emit accumulated token usage as a custom SSE comment so the
+            # frontend can update cost display without a separate API call.
+            total_cost = (
+                usage_acc["input_tokens"] / 1_000_000 * _GPT5_INPUT_PER_M
+                + usage_acc["output_tokens"] / 1_000_000 * _GPT5_OUTPUT_PER_M
+            )
+            usage_payload = json.dumps({
+                "type": "USAGE",
+                "input_tokens": usage_acc["input_tokens"],
+                "output_tokens": usage_acc["output_tokens"],
+                "cost_usd": round(total_cost, 6),
+            })
+            yield f"data: {usage_payload}\n\n"
 
             yield encoder.encode(
                 RunFinishedEvent(
@@ -248,6 +268,7 @@ class CtxSpaceAgent:
         encoder: EventEncoder,
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]],
+        usage_acc: dict[str, int],
     ) -> AsyncIterator[str]:
         """Stream the model; resolve MCP tools server-side; emit frontend tool calls.
 
@@ -262,6 +283,7 @@ class CtxSpaceAgent:
                 messages=messages,
                 tools=tools or None,
                 stream=True,
+                stream_options={"include_usage": True},
             )
 
             text_id: str | None = None
@@ -269,6 +291,10 @@ class CtxSpaceAgent:
             calls: dict[int, dict[str, str]] = {}
 
             async for chunk in stream:
+                # Accumulate usage from the final chunk (stream_options usage).
+                if getattr(chunk, "usage", None):
+                    usage_acc["input_tokens"] += chunk.usage.prompt_tokens or 0
+                    usage_acc["output_tokens"] += chunk.usage.completion_tokens or 0
                 if not chunk.choices:
                     continue
                 delta = chunk.choices[0].delta

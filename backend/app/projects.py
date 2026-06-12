@@ -29,6 +29,12 @@ _pb = PocketBaseClient(get_settings())
 DEFAULT_OWNER = "default"
 
 
+class TokenUsage(BaseModel):
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cost_usd: float = 0.0
+
+
 class ProjectUpsert(BaseModel):
     name: str = "Untitled"
     owner: str = DEFAULT_OWNER
@@ -36,6 +42,7 @@ class ProjectUpsert(BaseModel):
     messages: list[Any] = Field(default_factory=list)
     thread_id: str | None = None
     preview_entry: str | None = None
+    token_usage: dict[str, Any] = Field(default_factory=dict)
 
 
 class ProjectPatch(BaseModel):
@@ -43,6 +50,7 @@ class ProjectPatch(BaseModel):
     files: dict[str, Any] | None = None
     messages: list[Any] | None = None
     preview_entry: str | None = None
+    token_usage: dict[str, Any] | None = None
 
 
 @router.get("")

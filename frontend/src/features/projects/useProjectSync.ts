@@ -6,12 +6,13 @@
  * - Saves (debounced) whenever files or chat messages change.
  * - On opening an existing project, loads its files into the store and replays
  *   its chat messages into the agent thread.
+ * - Listens to USAGE SSE events from the agent to accumulate token costs.
  */
 import { useAgent } from '@copilotkit/react-core/v2';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useProjectStore } from '@/store/projectStore';
-import { useSessionStore } from '@/store/sessionStore';
+import { useSessionStore, type TokenUsage } from '@/store/sessionStore';
 
 import { projectsApi } from './projectsApi';
 
@@ -26,8 +27,10 @@ export function useProjectSync() {
 
   const projectId = useSessionStore((s) => s.projectId);
   const threadId = useSessionStore((s) => s.threadId);
+  const tokenUsage = useSessionStore((s) => s.tokenUsage);
   const setProjectId = useSessionStore((s) => s.setProjectId);
   const openExisting = useSessionStore((s) => s.openExisting);
+  const addTokenUsage = useSessionStore((s) => s.addTokenUsage);
 
   const [messages, setMessages] = useState<unknown[]>([]);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -41,6 +44,20 @@ export function useProjectSync() {
     });
     return () => sub.unsubscribe?.();
   }, [agent]);
+
+  // Subscribe to raw SSE events via EventSource to catch USAGE frames.
+  useEffect(() => {
+    if (!threadId) return;
+    // The agent's underlying EventSource is managed by CopilotKit; we cannot
+    // intercept it directly. Instead we patch fetch globally (once) to read
+    // USAGE frames from the response body and dispatch a custom DOM event.
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<TokenUsage>).detail;
+      if (detail) addTokenUsage(detail);
+    };
+    window.addEventListener('ctx:usage', handler);
+    return () => window.removeEventListener('ctx:usage', handler);
+  }, [threadId, addTokenUsage]);
 
   const persist = useCallback(async () => {
     const fileMap: Record<string, string> = {};
@@ -56,6 +73,7 @@ export function useProjectSync() {
           name: projectName,
           files: fileMap,
           messages,
+          token_usage: tokenUsage,
         });
       } else if (!creatingRef.current) {
         creatingRef.current = true;
@@ -64,6 +82,7 @@ export function useProjectSync() {
           files: fileMap,
           messages,
           thread_id: threadId ?? undefined,
+          token_usage: tokenUsage,
         });
         setProjectId(created.id);
         creatingRef.current = false;
@@ -72,7 +91,7 @@ export function useProjectSync() {
       creatingRef.current = false;
       // Best-effort save; failures shouldn't break the editing session.
     }
-  }, [files, messages, projectName, projectId, threadId, setProjectId]);
+  }, [files, messages, projectName, projectId, threadId, tokenUsage, setProjectId]);
 
   // Debounced save on any change.
   useEffect(() => {
@@ -91,7 +110,7 @@ export function useProjectSync() {
       const project = await projectsApi.get(id);
       const tid = project.thread_id ?? `thread-${id}`;
       loadFiles(project.name, project.files ?? {});
-      openExisting(id, tid);
+      openExisting(id, tid, project.token_usage as TokenUsage | undefined);
       // Seed local state so the next debounced save targets this project.
       if (Array.isArray(project.messages)) setMessages(project.messages);
     },

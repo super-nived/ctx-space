@@ -7,12 +7,19 @@
 // FastAPI base URL. In dev the agent runs at :8000; reuse that origin.
 const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8000';
 
+export interface TokenUsage {
+  input_tokens: number;
+  output_tokens: number;
+  cost_usd: number;
+}
+
 export interface ProjectSummary {
   id: string;
   name: string;
   thread_id?: string;
   updated: string;
   created: string;
+  token_usage?: TokenUsage;
 }
 
 export interface ProjectFull extends ProjectSummary {
@@ -27,6 +34,7 @@ export interface ProjectUpsert {
   messages?: unknown[];
   thread_id?: string;
   preview_entry?: string;
+  token_usage?: TokenUsage;
 }
 
 async function json<T>(res: Response): Promise<T> {
