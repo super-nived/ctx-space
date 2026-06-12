@@ -1,6 +1,7 @@
 import { CopilotChat } from '@copilotkit/react-core/v2';
 
 import { useAgentTools } from '@/features/agent/useAgentTools';
+import { useChatRestore } from '@/features/projects/useChatRestore';
 
 const AGENT_ID = 'ctx_space';
 
@@ -18,6 +19,8 @@ interface ChatPanelProps {
 export function ChatPanel({ threadId }: ChatPanelProps) {
   // Register writeFile / deleteFile / proposePlan with CopilotKit.
   useAgentTools();
+  // Replay a saved project's conversation into this chat (refresh / open project).
+  useChatRestore(threadId);
 
   return (
     <section className="border-border-subtle bg-canvas flex h-full min-h-0 flex-col border-r">

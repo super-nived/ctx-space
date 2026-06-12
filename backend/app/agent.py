@@ -129,7 +129,48 @@ def _ag_messages_to_openai(messages: list[Any]) -> list[dict[str, Any]]:
                     "content": getattr(msg, "content", "") or "",
                 }
             )
-    return out
+    return _sanitize_tool_calls(out)
+
+
+def _sanitize_tool_calls(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Make a message list valid for OpenAI's tool-call rules.
+
+    OpenAI requires that every assistant ``tool_calls`` entry is immediately
+    answered by a ``tool`` message for each tool_call_id, and that every ``tool``
+    message refers to a preceding tool_call. Conversations restored from storage
+    can be saved mid-build (a writeFile tool call whose client-side result wasn't
+    persisted), which would make OpenAI 400. We:
+      * collect every tool_call_id that HAS a matching tool result,
+      * drop unanswered tool_calls from assistant messages (and the message if it
+        then has no content and no tool_calls),
+      * drop orphan tool messages that reference an unknown tool_call_id.
+    """
+    answered: set[str] = {
+        m["tool_call_id"]
+        for m in messages
+        if m.get("role") == "tool" and m.get("tool_call_id")
+    }
+
+    cleaned: list[dict[str, Any]] = []
+    for m in messages:
+        if m.get("role") == "assistant" and m.get("tool_calls"):
+            kept = [tc for tc in m["tool_calls"] if tc.get("id") in answered]
+            new_msg = dict(m)
+            if kept:
+                new_msg["tool_calls"] = kept
+            else:
+                new_msg.pop("tool_calls", None)
+            # Drop an assistant message that ends up with neither content nor calls.
+            if not new_msg.get("tool_calls") and not (new_msg.get("content") or "").strip():
+                continue
+            cleaned.append(new_msg)
+        elif m.get("role") == "tool":
+            # Keep only tool results whose call survived above.
+            if m.get("tool_call_id") in answered:
+                cleaned.append(m)
+        else:
+            cleaned.append(m)
+    return cleaned
 
 
 def _frontend_tools_to_openai(tools: list[Any]) -> list[dict[str, Any]]:

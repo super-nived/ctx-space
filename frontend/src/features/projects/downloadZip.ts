@@ -13,12 +13,7 @@ import { strToU8, zipSync } from 'fflate';
 import type { ProjectFile } from '@/types/project';
 
 const CODE_EXT = /\.(tsx|ts|jsx|js)$/;
-const ENTRY_CANDIDATES = [
-  'src/main.tsx',
-  'src/main.jsx',
-  'src/index.tsx',
-  'src/index.jsx',
-];
+const ENTRY_CANDIDATES = ['src/main.tsx', 'src/main.jsx', 'src/index.tsx', 'src/index.jsx'];
 
 function safeName(projectName: string): string {
   return (
@@ -113,9 +108,7 @@ export function buildProjectZip(
   //    main entry that mounts it (matching the preview's bootstrap behavior).
   let entry = ENTRY_CANDIDATES.find((c) => present.has(c));
   if (!entry) {
-    const appPath = ['src/App.tsx', 'src/App.jsx', 'App.tsx'].find((c) =>
-      present.has(c),
-    );
+    const appPath = ['src/App.tsx', 'src/App.jsx', 'App.tsx'].find((c) => present.has(c));
     const appImport = appPath
       ? './' + appPath.replace(/^src\//, '').replace(CODE_EXT, '')
       : './App';

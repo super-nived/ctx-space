@@ -42,50 +42,6 @@ export function useProjectSync() {
     return () => sub.unsubscribe?.();
   }, [agent]);
 
-  // On mount/refresh, replay this thread's saved messages into the agent so the
-  // conversation reappears (our backend agent is stateless — we restore client-side).
-  const restoredRef = useRef(false);
-  useEffect(() => {
-    if (!agent || !threadId || restoredRef.current) return;
-    if ((agent.messages?.length ?? 0) > 0) {
-      restoredRef.current = true;
-      return;
-    }
-    const cached = sessionStorage.getItem(`ctx-restore-${threadId}`);
-    if (cached) {
-      restoredRef.current = true;
-      // Defer so state isn't set synchronously inside the effect body.
-      void Promise.resolve().then(() => {
-        try {
-          const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            agent.setMessages(parsed as never);
-            setMessages(parsed);
-          }
-        } catch {
-          /* ignore */
-        }
-      });
-      return;
-    }
-
-    // No cache (plain refresh of the current project): fetch messages from backend.
-    if (projectId) {
-      restoredRef.current = true;
-      projectsApi
-        .get(projectId)
-        .then((p) => {
-          if (Array.isArray(p.messages) && p.messages.length > 0) {
-            agent.setMessages(p.messages as never);
-            setMessages(p.messages);
-          }
-        })
-        .catch(() => {
-          /* offline / missing — chat just starts empty */
-        });
-    }
-  }, [agent, threadId, projectId]);
-
   const persist = useCallback(async () => {
     const fileMap: Record<string, string> = {};
     for (const [path, f] of Object.entries(files)) fileMap[path] = f.contents;
@@ -127,25 +83,17 @@ export function useProjectSync() {
     };
   }, [persist]);
 
-  /** Open an existing project: load its files + chat thread, then continue editing. */
+  /** Open an existing project: load files + point the session at its thread.
+   *  Changing the thread re-binds CopilotChat; useChatRestore (in ChatPanel) then
+   *  replays the saved conversation. No page reload needed. */
   const openProject = useCallback(
     async (id: string) => {
       const project = await projectsApi.get(id);
-      loadFiles(project.name, project.files ?? {});
-      // Point the session at this project + its thread, then reload so CopilotChat
-      // rebinds to the thread and the agent replays the saved conversation.
       const tid = project.thread_id ?? `thread-${id}`;
+      loadFiles(project.name, project.files ?? {});
       openExisting(id, tid);
-      // Cache the messages so they can be replayed immediately after reload.
-      try {
-        sessionStorage.setItem(
-          `ctx-restore-${tid}`,
-          JSON.stringify(project.messages ?? []),
-        );
-      } catch {
-        /* sessionStorage may be unavailable; chat will still reload by thread */
-      }
-      window.location.reload();
+      // Seed local state so the next debounced save targets this project.
+      if (Array.isArray(project.messages)) setMessages(project.messages);
     },
     [loadFiles, openExisting],
   );
