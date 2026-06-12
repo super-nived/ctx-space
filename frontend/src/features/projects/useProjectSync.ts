@@ -1,12 +1,10 @@
 /**
  * Keeps the open project saved to the backend, and restores a project's chat +
- * files when one is opened. This is what makes projects survive refresh AND lets
- * the user reopen any past project and continue editing (Lovable-style history).
+ * files when one is opened.
  *
  * - Saves (debounced) whenever files or chat messages change.
- * - On opening an existing project, loads its files into the store and replays
- *   its chat messages into the agent thread.
- * - Listens to USAGE SSE events from the agent to accumulate token costs.
+ * - After each agent run completes, fetches /api/usage?thread_id=X and
+ *   accumulates the token cost into the session store + PocketBase.
  */
 import { useAgent } from '@copilotkit/react-core/v2';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -18,6 +16,7 @@ import { projectsApi } from './projectsApi';
 
 const AGENT_ID = 'ctx_space';
 const SAVE_DEBOUNCE_MS = 1200;
+const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8000';
 
 export function useProjectSync() {
   const { agent } = useAgent({ agentId: AGENT_ID });
@@ -30,11 +29,13 @@ export function useProjectSync() {
   const tokenUsage = useSessionStore((s) => s.tokenUsage);
   const setProjectId = useSessionStore((s) => s.setProjectId);
   const openExisting = useSessionStore((s) => s.openExisting);
-  const addTokenUsage = useSessionStore((s) => s.addTokenUsage);
+  const setTokenUsage = useSessionStore((s) => s.setTokenUsage);
 
   const [messages, setMessages] = useState<unknown[]>([]);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const creatingRef = useRef(false);
+  // Track previous isRunning to detect run-end transitions.
+  const wasRunningRef = useRef(false);
 
   // Track agent messages so we can persist the conversation.
   useEffect(() => {
@@ -45,25 +46,33 @@ export function useProjectSync() {
     return () => sub.unsubscribe?.();
   }, [agent]);
 
-  // Subscribe to raw SSE events via EventSource to catch USAGE frames.
+  // After each run completes, fetch cumulative usage from the backend.
   useEffect(() => {
-    if (!threadId) return;
-    // The agent's underlying EventSource is managed by CopilotKit; we cannot
-    // intercept it directly. Instead we patch fetch globally (once) to read
-    // USAGE frames from the response body and dispatch a custom DOM event.
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent<TokenUsage>).detail;
-      if (detail) addTokenUsage(detail);
-    };
-    window.addEventListener('ctx:usage', handler);
-    return () => window.removeEventListener('ctx:usage', handler);
-  }, [threadId, addTokenUsage]);
+    if (!agent || !threadId) return;
+    const sub = agent.subscribe({
+      onStateChanged: () => {
+        const running = agent.isRunning ?? false;
+        if (wasRunningRef.current && !running) {
+          // Run just ended — fetch usage from server.
+          void fetch(`${API_BASE}/api/usage?thread_id=${encodeURIComponent(threadId)}`)
+            .then((r) => r.json())
+            .then((data: TokenUsage) => {
+              if (data.cost_usd > 0 || data.input_tokens > 0) {
+                setTokenUsage(data);
+              }
+            })
+            .catch(() => {});
+        }
+        wasRunningRef.current = running;
+      },
+    });
+    return () => sub.unsubscribe?.();
+  }, [agent, threadId, setTokenUsage]);
 
   const persist = useCallback(async () => {
     const fileMap: Record<string, string> = {};
     for (const [path, f] of Object.entries(files)) fileMap[path] = f.contents;
 
-    // Don't create an empty project (no files and no chat yet).
     const hasContent = Object.keys(fileMap).length > 0 || messages.length > 0;
     if (!hasContent) return;
 
@@ -89,11 +98,9 @@ export function useProjectSync() {
       }
     } catch {
       creatingRef.current = false;
-      // Best-effort save; failures shouldn't break the editing session.
     }
   }, [files, messages, projectName, projectId, threadId, tokenUsage, setProjectId]);
 
-  // Debounced save on any change.
   useEffect(() => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => void persist(), SAVE_DEBOUNCE_MS);
@@ -102,16 +109,12 @@ export function useProjectSync() {
     };
   }, [persist]);
 
-  /** Open an existing project: load files + point the session at its thread.
-   *  Changing the thread re-binds CopilotChat; useChatRestore (in ChatPanel) then
-   *  replays the saved conversation. No page reload needed. */
   const openProject = useCallback(
     async (id: string) => {
       const project = await projectsApi.get(id);
       const tid = project.thread_id ?? `thread-${id}`;
       loadFiles(project.name, project.files ?? {});
       openExisting(id, tid, project.token_usage as TokenUsage | undefined);
-      // Seed local state so the next debounced save targets this project.
       if (Array.isArray(project.messages)) setMessages(project.messages);
     },
     [loadFiles, openExisting],
