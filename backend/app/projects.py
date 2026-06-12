@@ -20,6 +20,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from app.config import get_settings
+from app.github import push_project_to_github
 from app.pocketbase import PocketBaseClient
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
@@ -92,3 +93,50 @@ async def delete_project(project_id: str) -> dict[str, str]:
         return {"deleted": project_id}
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=502, detail=f"PocketBase error: {exc}") from exc
+
+
+@router.post("/{project_id}/publish")
+async def publish_project(project_id: str) -> dict[str, str]:
+    """Push all project files to GitHub as a new (or updated) repo.
+
+    Uses GITHUB_TOKEN + GITHUB_USERNAME from .env — no user auth required.
+    Returns the GitHub repo URL and saves it back to the project record.
+    """
+    settings = get_settings()
+
+    if not settings.github_token or not settings.github_username:
+        raise HTTPException(
+            status_code=503,
+            detail="GitHub publish not configured. Set GITHUB_TOKEN and GITHUB_USERNAME in .env.",
+        )
+
+    # Load the full project (files + name)
+    try:
+        project = await _pb.get_project(project_id)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=404, detail=f"Project not found: {exc}") from exc
+
+    files: dict[str, str] = project.get("files", {})
+    if not files:
+        raise HTTPException(status_code=400, detail="No files to publish yet.")
+
+    project_name: str = project.get("name", "Untitled")
+
+    try:
+        result = await push_project_to_github(
+            token=settings.github_token,
+            github_username=settings.github_username,
+            project_name=project_name,
+            project_id=project_id,
+            files=files,
+        )
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"GitHub push failed: {exc}") from exc
+
+    # Persist the repo URL back to the project record
+    try:
+        await _pb.update_project(project_id, {"github_url": result["repo_url"]})
+    except Exception:  # noqa: BLE001
+        pass  # Non-fatal — URL is returned to the frontend either way
+
+    return result

@@ -4,6 +4,7 @@ import { Wordmark } from '@/components/Wordmark';
 import { downloadProjectZip } from '@/features/projects/downloadZip';
 import { projectsApi } from '@/features/projects/projectsApi';
 import { useAgentStatus } from '@/features/agent/useAgentStatus';
+import { PublishModal } from '@/features/publish/PublishModal';
 import { useProjectStore } from '@/store/projectStore';
 import { useSessionStore } from '@/store/sessionStore';
 import { useThemeStore, resolveIsDark } from '@/store/themeStore';
@@ -187,7 +188,9 @@ export function TopBar({ onToggleMobileView, mobileView, onOpenHistory }: TopBar
   const files = useProjectStore((s) => s.files);
   const resetProject = useProjectStore((s) => s.resetProject);
   const resetSession = useSessionStore((s) => s.reset);
+  const projectId = useSessionStore((s) => s.projectId);
   const { isRunning, phase, lastWrittenFile } = useAgentStatus();
+  const [publishOpen, setPublishOpen] = useState(false);
 
   const hasFiles = Object.keys(files).length > 0;
   const downloadZip = () => downloadProjectZip(projectName, files);
@@ -256,11 +259,22 @@ export function TopBar({ onToggleMobileView, mobileView, onOpenHistory }: TopBar
         </button>
         <button
           type="button"
-          className="rounded-md bg-indigo-600 px-3 py-1.5 text-[13px] font-medium text-white transition hover:bg-indigo-500"
+          onClick={() => setPublishOpen(true)}
+          disabled={!hasFiles}
+          title={hasFiles ? 'Push code to GitHub' : 'No files to publish yet'}
+          className="rounded-md bg-indigo-600 px-3 py-1.5 text-[13px] font-medium text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-40"
         >
           Publish
         </button>
       </div>
+
+      {publishOpen && projectId && (
+        <PublishModal
+          projectId={projectId}
+          projectName={projectName}
+          onClose={() => setPublishOpen(false)}
+        />
+      )}
     </header>
   );
 }

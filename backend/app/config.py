@@ -34,14 +34,9 @@ class Settings(BaseSettings):
     # --- CORS ---
     allowed_origins: str = Field("http://localhost:5173", alias="ALLOWED_ORIGINS")
 
-    # --- GitHub OAuth (Publish; optional until P4) ---
-    github_client_id: str = Field("", alias="GITHUB_CLIENT_ID")
-    github_client_secret: str = Field("", alias="GITHUB_CLIENT_SECRET")
-    github_oauth_callback_url: str = Field(
-        "http://localhost:8000/api/github/callback",
-        alias="GITHUB_OAUTH_CALLBACK_URL",
-    )
-    session_secret: str = Field("change-me", alias="SESSION_SECRET")
+    # --- GitHub (Publish — push generated code to your account) ---
+    github_token: str = Field("", alias="GITHUB_TOKEN")
+    github_username: str = Field("", alias="GITHUB_USERNAME")
 
     # --- PocketBase (project storage) ---
     pocketbase_url: str = Field("http://127.0.0.1:8090", alias="POCKETBASE_URL")
