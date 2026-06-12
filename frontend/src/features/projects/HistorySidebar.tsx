@@ -8,15 +8,15 @@ import { projectsApi, type ProjectSummary } from './projectsApi';
 interface HistorySidebarProps {
   open: boolean;
   onClose: () => void;
-  /** Loads a project's files + chat and continues editing it. */
   onOpenProject: (id: string) => Promise<void>;
 }
 
-/**
- * Slide-over panel listing all saved projects (newest first). Click one to open
- * its files + conversation and keep editing; create a new one without losing the
- * others. This is the Lovable-style project history.
- */
+function formatCost(usd: number): string {
+  if (!usd) return '';
+  if (usd < 0.01) return `${(usd * 100).toFixed(2)}¢`;
+  return `$${usd.toFixed(3)}`;
+}
+
 export function HistorySidebar({ open, onClose, onOpenProject }: HistorySidebarProps) {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [loading, setLoading] = useState(false);
@@ -40,9 +40,7 @@ export function HistorySidebar({ open, onClose, onOpenProject }: HistorySidebarP
         if (active) setLoading(false);
       }
     })();
-    return () => {
-      active = false;
-    };
+    return () => { active = false; };
   }, [open]);
 
   const handleOpen = async (id: string) => {
@@ -73,14 +71,18 @@ export function HistorySidebar({ open, onClose, onOpenProject }: HistorySidebarP
 
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-black/20" onClick={onClose} aria-hidden />
-      <aside className="border-border-subtle bg-canvas fixed inset-y-0 left-0 z-50 flex w-80 flex-col border-r shadow-xl">
-        <div className="border-border-subtle flex items-center justify-between border-b px-4 py-3">
-          <h2 className="text-ink text-sm font-semibold">Projects</h2>
+      <div className="fixed inset-0 z-40" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={onClose} aria-hidden />
+      <aside
+        className="fade-in fixed inset-y-0 left-0 z-50 flex w-80 flex-col border-r shadow-2xl"
+        style={{ background: 'var(--canvas)', borderColor: 'var(--border)' }}
+      >
+        <div className="flex items-center justify-between border-b px-4 py-3" style={{ borderColor: 'var(--border)' }}>
+          <h2 className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>Projects</h2>
           <button
             type="button"
             onClick={onClose}
-            className="text-ink-muted hover:text-ink text-lg leading-none"
+            className="grid h-6 w-6 place-items-center rounded-md text-lg leading-none transition hover:bg-white/5"
+            style={{ color: 'var(--ink-muted)' }}
             aria-label="Close"
           >
             ×
@@ -91,7 +93,7 @@ export function HistorySidebar({ open, onClose, onOpenProject }: HistorySidebarP
           <button
             type="button"
             onClick={handleNew}
-            className="bg-brand-600 hover:bg-brand-700 w-full rounded-lg px-3 py-2 text-[13px] font-medium text-white"
+            className="w-full rounded-lg bg-indigo-600 px-3 py-2 text-[13px] font-medium text-white transition hover:bg-indigo-500"
           >
             + New project
           </button>
@@ -99,40 +101,54 @@ export function HistorySidebar({ open, onClose, onOpenProject }: HistorySidebarP
 
         <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
           {loading ? (
-            <p className="text-ink-muted px-2 py-3 text-[13px]">Loading…</p>
+            <div className="space-y-1 px-1 pt-1">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="shimmer-row h-12 rounded-lg" />
+              ))}
+            </div>
           ) : projects.length === 0 ? (
-            <p className="text-ink-muted px-2 py-3 text-[13px]">
+            <p className="px-2 py-3 text-[13px]" style={{ color: 'var(--ink-muted)' }}>
               No saved projects yet. Build one and it'll appear here.
             </p>
           ) : (
-            <ul className="space-y-1">
-              {projects.map((p) => (
-                <li key={p.id}>
-                  <button
-                    type="button"
-                    onClick={() => handleOpen(p.id)}
-                    disabled={busyId === p.id}
-                    className={`group hover:bg-surface-2 flex w-full items-center justify-between rounded-lg px-3 py-2 text-left transition ${
-                      p.id === currentProjectId ? 'bg-brand-50' : ''
-                    }`}
-                  >
-                    <span className="min-w-0 flex-1">
-                      <span className="text-ink block truncate text-[13px] font-medium">
-                        {busyId === p.id ? 'Opening…' : p.name}
-                      </span>
-                      <span className="text-ink-muted block text-[11px]">
-                        {new Date(p.updated).toLocaleString()}
-                      </span>
-                    </span>
-                    <span
-                      onClick={(e) => handleDelete(e, p.id)}
-                      className="text-ink-muted ml-2 hidden rounded px-1.5 py-0.5 text-[11px] group-hover:inline hover:bg-red-100 hover:text-red-600"
+            <ul className="space-y-0.5">
+              {projects.map((p) => {
+                const cost = (p.token_usage as { cost_usd?: number } | undefined)?.cost_usd ?? 0;
+                return (
+                  <li key={p.id}>
+                    <button
+                      type="button"
+                      onClick={() => handleOpen(p.id)}
+                      disabled={busyId === p.id}
+                      className="group flex w-full items-center justify-between rounded-lg px-3 py-2 text-left transition hover:bg-white/5"
+                      style={p.id === currentProjectId ? { background: 'var(--indigo-lt)' } : {}}
                     >
-                      Delete
-                    </span>
-                  </button>
-                </li>
-              ))}
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[13px] font-medium" style={{ color: 'var(--ink)' }}>
+                          {busyId === p.id ? 'Opening…' : p.name}
+                        </span>
+                        <span className="block text-[11px]" style={{ color: 'var(--ink-muted)' }}>
+                          {new Date(p.updated).toLocaleString()}
+                        </span>
+                      </span>
+                      <div className="ml-2 flex items-center gap-1.5">
+                        {cost > 0 && (
+                          <span className="text-[10px] font-medium" style={{ color: 'var(--ink-muted)' }}>
+                            {formatCost(cost)}
+                          </span>
+                        )}
+                        <span
+                          onClick={(e) => handleDelete(e, p.id)}
+                          className="hidden rounded px-1.5 py-0.5 text-[11px] transition group-hover:inline hover:bg-red-500/10 hover:text-red-400"
+                          style={{ color: 'var(--ink-muted)' }}
+                        >
+                          Delete
+                        </span>
+                      </div>
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>

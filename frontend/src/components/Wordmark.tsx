@@ -5,18 +5,17 @@ interface WordmarkProps {
   showFull?: boolean;
 }
 
-/** Context Space brand wordmark: a glyph tile + name. */
 export function Wordmark({ className, showFull = true }: WordmarkProps) {
   return (
-    <div className={cn('flex items-center gap-2 select-none', className)}>
+    <div className={cn('flex select-none items-center gap-2', className)}>
       <span
         aria-hidden
-        className="bg-brand-600 grid h-7 w-7 place-items-center rounded-lg font-semibold text-white shadow-sm"
+        className="grid h-7 w-7 place-items-center rounded-lg bg-indigo-600 font-semibold text-white shadow-sm"
       >
         C
       </span>
       {showFull && (
-        <span className="text-ink text-[15px] font-semibold tracking-tight">
+        <span className="text-[15px] font-semibold tracking-tight" style={{ color: 'var(--ink)' }}>
           Context Space
         </span>
       )}

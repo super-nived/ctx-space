@@ -1,71 +1,110 @@
 @import 'tailwindcss';
 
-/*
- * Context Space (CTX-SPACE) design tokens.
- * Lovable-style: clean neutral surfaces, Inter font, high screen-space
- * utilization (full-height app, slim chrome). Distinct accent so the brand
- * reads as "Context Space", not a clone.
- */
 @theme {
   --font-sans:
-    'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial,
-    sans-serif;
-
-  /* Brand accent — indigo/violet, distinct from Lovable's pink. */
-  --color-brand-50: #eef2ff;
-  --color-brand-100: #e0e7ff;
-  --color-brand-300: #a5b4fc;
-  --color-brand-500: #6366f1;
-  --color-brand-600: #4f46e5;
-  --color-brand-700: #4338ca;
-
-  /* Neutral surfaces (Lovable-like). */
-  --color-canvas: #ffffff;
-  --color-surface: #fafafa;
-  --color-surface-2: #f4f4f5;
-  --color-border-subtle: #e4e4e7;
-  --color-ink: #18181b;
-  --color-ink-soft: #52525b;
-  --color-ink-muted: #a1a1aa;
+    'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
+    Helvetica, Arial, sans-serif;
 }
 
-@layer base {
-  :root {
-    color-scheme: light;
-  }
+/* ─── Design tokens ──────────────────────────────────────────────────────── */
+/* Light — warm-neutral, no harsh whites */
+:root {
+  color-scheme: light;
 
-  html,
-  body,
-  #root {
-    height: 100%;
-  }
+  --canvas:    #f8f8fa;
+  --surface:   #ffffff;
+  --surface-2: #f1f1f4;
+  --surface-3: #e6e6ea;
+  --border:    #e2e2e6;
+
+  --ink:       #18181b;
+  --ink-soft:  #52525b;
+  --ink-muted: #a1a1aa;
+
+  /* accent */
+  --indigo:    #4f46e5;
+  --indigo-lt: rgba(99, 102, 241, 0.10);
+  --emerald:   #10b981;
+  --emerald-lt:rgba(16, 185, 129, 0.10);
+}
+
+/* Dark — pure dark with zero harsh white cards */
+.dark {
+  color-scheme: dark;
+
+  --canvas:    #0d0d12;
+  --surface:   #141419;
+  --surface-2: #1c1c23;
+  --surface-3: #252530;
+  --border:    #2a2a35;
+
+  --ink:       #e8e8ee;
+  --ink-soft:  #8b8b9e;
+  --ink-muted: #4e4e5e;
+
+  --indigo:    #6366f1;
+  --indigo-lt: rgba(99, 102, 241, 0.12);
+  --emerald:   #34d399;
+  --emerald-lt:rgba(52, 211, 153, 0.10);
+}
+
+/* ─── Base reset ─────────────────────────────────────────────────────────── */
+@layer base {
+  html, body, #root { height: 100%; }
 
   body {
     margin: 0;
-    background: var(--color-surface);
-    color: var(--color-ink);
+    background-color: var(--canvas);
+    color: var(--ink);
     font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.5;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+    transition: background-color 0.18s ease, color 0.18s ease;
   }
 
-  /* Subtle, modern scrollbars to match the Lovable feel. */
   * {
     scrollbar-width: thin;
-    scrollbar-color: var(--color-border-subtle) transparent;
+    scrollbar-color: var(--border) transparent;
+    box-sizing: border-box;
   }
 }
 
-/* ── Agent activity animations ───────────────────────────────────────────── */
+/* ─── Semantic utility helpers ───────────────────────────────────────────── */
+.bg-canvas    { background-color: var(--canvas); }
+.bg-surface   { background-color: var(--surface); }
+.bg-surface-2 { background-color: var(--surface-2); }
+.bg-surface-3 { background-color: var(--surface-3); }
+.text-ink     { color: var(--ink); }
+.text-ink-soft{ color: var(--ink-soft); }
+.text-ink-muted{ color: var(--ink-muted); }
+.border-subtle{ border-color: var(--border); }
 
+/* ─── Landing gradient mesh ──────────────────────────────────────────────── */
+.landing-gradient {
+  background:
+    radial-gradient(ellipse 80% 55% at 50% -5%,  rgba(139, 92, 246, 0.45) 0%, transparent 68%),
+    radial-gradient(ellipse 55% 45% at 85% 55%,  rgba(236, 72, 153, 0.28) 0%, transparent 62%),
+    radial-gradient(ellipse 45% 40% at  8% 72%,  rgba(99, 102, 241, 0.25) 0%, transparent 58%);
+}
+
+.dark .landing-gradient {
+  background:
+    radial-gradient(ellipse 80% 55% at 50% -5%,  rgba(139, 92, 246, 0.55) 0%, transparent 68%),
+    radial-gradient(ellipse 55% 45% at 85% 55%,  rgba(236, 72, 153, 0.32) 0%, transparent 62%),
+    radial-gradient(ellipse 45% 40% at  8% 72%,  rgba(99, 102, 241, 0.30) 0%, transparent 58%);
+}
+
+/* ─── Animations ─────────────────────────────────────────────────────────── */
 @keyframes progress-slide {
   0%   { transform: translateX(-100%); }
   100% { transform: translateX(400%); }
 }
 
 @keyframes dot-bounce {
-  0%, 80%, 100% { transform: translateY(0);    opacity: 0.4; }
-  40%            { transform: translateY(-4px); opacity: 1;   }
+  0%, 80%, 100% { transform: translateY(0);    opacity: 0.35; }
+  40%           { transform: translateY(-4px); opacity: 1;    }
 }
 
 @keyframes shimmer {
@@ -74,25 +113,158 @@
 }
 
 @keyframes pulse-ring {
-  0%   { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.35); }
-  70%  { box-shadow: 0 0 0 6px rgba(99, 102, 241, 0);  }
-  100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0);    }
+  0%   { box-shadow: 0 0 0 0   rgba(99, 102, 241, 0.35); }
+  70%  { box-shadow: 0 0 0 8px rgba(99, 102, 241, 0); }
+  100% { box-shadow: 0 0 0 0   rgba(99, 102, 241, 0); }
 }
 
-.agent-progress-bar {
-  animation: progress-slide 1.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(5px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
+.agent-progress-bar { animation: progress-slide 1.4s cubic-bezier(0.4,0,0.6,1) infinite; }
 .dot-1 { animation: dot-bounce 1.2s ease-in-out infinite 0ms;   }
 .dot-2 { animation: dot-bounce 1.2s ease-in-out infinite 160ms; }
 .dot-3 { animation: dot-bounce 1.2s ease-in-out infinite 320ms; }
+.building-ring { animation: pulse-ring 1.8s ease-out infinite; }
+.fade-in { animation: fade-up 0.22s ease both; }
 
 .shimmer-row {
-  background: linear-gradient(90deg, #f4f4f5 25%, #e8e8ec 50%, #f4f4f5 75%);
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 50%, var(--surface-2) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.6s ease-in-out infinite;
 }
 
-.building-ring {
-  animation: pulse-ring 1.8s ease-out infinite;
+/* ─── CopilotKit legacy class overrides ──────────────────────────────────── */
+.copilotKitChat {
+  --copilot-kit-background-color:                 var(--canvas)    !important;
+  --copilot-kit-secondary-background-color:       var(--surface)   !important;
+  --copilot-kit-separator-color:                  var(--border)    !important;
+  --copilot-kit-primary-color:                    var(--indigo)    !important;
+  --copilot-kit-contrast-color:                   #ffffff          !important;
+  --copilot-kit-response-button-color:            var(--ink-soft)  !important;
+  --copilot-kit-response-button-background-color: var(--surface-2) !important;
+  --copilot-kit-response-button-border-color:     var(--border)    !important;
+  --copilot-kit-scrollbar-color:                  var(--border)    !important;
+  font-family: var(--font-sans) !important;
+}
+
+.copilotKitMessages   { background: var(--canvas) !important; }
+.copilotKitInputArea  { background: var(--canvas) !important; border-top: 1px solid var(--border) !important; }
+.copilotKitInput      { background: var(--surface-2) !important; border: 1px solid var(--border) !important; border-radius: 10px !important; color: var(--ink) !important; }
+.copilotKitInput:focus{ border-color: var(--indigo) !important; box-shadow: 0 0 0 3px rgba(99,102,241,0.12) !important; }
+.copilotKitSendButton { background: var(--indigo) !important; border-radius: 8px !important; border: none !important; }
+.copilotKitAssistantMessage { background: transparent !important; color: var(--ink) !important; }
+.copilotKitMessage.copilotKitUserMessage {
+  background: transparent !important;
+  color: var(--ink) !important;
+  border-radius: 12px !important;
+}
+
+/* ─── CopilotKit v2 cpk: compiled class overrides ────────────────────────── */
+/*
+ * CopilotKit v2 compiles Tailwind with a `cpk:` prefix.  The tool-call cards
+ * ("writeFile", "deleteFile") render with these exact compiled classes.
+ * We override them here by re-declaring the same class names with higher
+ * specificity (adding .dark or :root) — no !important needed because CSS
+ * cascade puts our stylesheet after the CK stylesheet.
+ *
+ * Classes targeted:
+ *   card bg      — .cpk\:bg-white\/70  +  .cpk\:dark\:bg-zinc-900\/50
+ *   card border  — .cpk\:border-zinc-200\/60  +  .cpk\:dark\:border-zinc-800\/60
+ *   Done badge   — .cpk\:bg-emerald-100  /  .cpk\:dark\:bg-emerald-500\/15
+ *                  .cpk\:text-emerald-800  /  .cpk\:dark\:text-emerald-400
+ *   blue dot     — .cpk\:bg-blue-500
+ *   card text    — .cpk\:text-zinc-900  /  .cpk\:dark\:text-zinc-100
+ *                  .cpk\:text-zinc-500  /  .cpk\:dark\:text-zinc-400
+ *   code block   — .cpk\:bg-zinc-50  /  .cpk\:dark\:bg-zinc-800\/60
+ *   status zinc  — .cpk\:bg-zinc-100  /  .cpk\:dark\:bg-zinc-700\/40
+ */
+
+/* ── Card container ── */
+:root .cpk\:bg-white\/70 {
+  background-color: var(--surface) !important;
+  backdrop-filter: none !important;
+}
+.dark .cpk\:dark\:bg-zinc-900\/50 {
+  background-color: var(--surface) !important;
+}
+
+/* ── Card border ── */
+:root .cpk\:border-zinc-200\/60 {
+  border-color: var(--border) !important;
+}
+.dark .cpk\:dark\:border-zinc-800\/60 {
+  border-color: var(--border) !important;
+}
+
+/* ── "Done" / success badge ── */
+:root .cpk\:bg-emerald-100 {
+  background-color: var(--emerald-lt) !important;
+}
+:root .cpk\:text-emerald-800 {
+  color: var(--emerald) !important;
+}
+.dark .cpk\:dark\:bg-emerald-500\/15 {
+  background-color: var(--emerald-lt) !important;
+}
+.dark .cpk\:dark\:text-emerald-400 {
+  color: var(--emerald) !important;
+}
+
+/* ── Blue status dot (the circle on the left of each tool card) ── */
+:root .cpk\:bg-blue-500,
+.dark .cpk\:bg-blue-500 {
+  background-color: var(--indigo) !important;
+  opacity: 0.7 !important;
+}
+
+/* ── Card primary text ── */
+:root .cpk\:text-zinc-900 { color: var(--ink) !important; }
+.dark .cpk\:dark\:text-zinc-100 { color: var(--ink) !important; }
+
+/* ── Card secondary/label text ── */
+:root .cpk\:text-zinc-500 { color: var(--ink-muted) !important; }
+.dark .cpk\:dark\:text-zinc-400 { color: var(--ink-muted) !important; }
+
+/* ── Card code / pre block ── */
+:root .cpk\:bg-zinc-50 { background-color: var(--surface-2) !important; }
+.dark .cpk\:dark\:bg-zinc-800\/60 { background-color: var(--surface-2) !important; }
+:root .cpk\:text-zinc-800 { color: var(--ink) !important; }
+.dark .cpk\:dark\:text-zinc-200 { color: var(--ink-soft) !important; }
+
+/* ── Zinc status badges (pending/in-progress) ── */
+:root .cpk\:bg-zinc-100 { background-color: var(--surface-2) !important; }
+:root .cpk\:text-zinc-800 { color: var(--ink-soft) !important; }
+.dark .cpk\:dark\:bg-zinc-700\/40 { background-color: var(--surface-2) !important; }
+.dark .cpk\:dark\:text-zinc-300 { color: var(--ink-soft) !important; }
+
+/* ── Card shadow — kill it entirely ── */
+:root .cpk\:shadow-sm,
+.dark .cpk\:shadow-sm {
+  box-shadow: none !important;
+}
+
+/* ── CopilotKit dropdown/popover (input suggestions) ── */
+:root .cpk\:bg-white {
+  background-color: var(--surface) !important;
+}
+.dark .cpk\:dark\:bg-\[\#1f1f1f\] {
+  background-color: var(--surface) !important;
+}
+.dark .cpk\:dark\:border-\[\#3a3a3a\] {
+  border-color: var(--border) !important;
+}
+
+/* ── Input area bg ── */
+:root .cpk\:bg-white\/70 ~ * .cpk\:bg-white,
+.dark .cpk\:dark\:bg-\[\#303030\] {
+  background-color: var(--surface-2) !important;
+}
+
+/* Nuke box-shadow on CK cards entirely in dark */
+.dark [class*="cpk"] {
+  --tw-shadow: 0 0 #0000 !important;
+  --tw-shadow-colored: 0 0 #0000 !important;
 }

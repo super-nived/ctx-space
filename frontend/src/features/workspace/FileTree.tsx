@@ -28,15 +28,7 @@ function buildTree(paths: string[]): TreeNode {
   return root;
 }
 
-function TreeBranch({
-  node,
-  depth,
-  writingPath,
-}: {
-  node: TreeNode;
-  depth: number;
-  writingPath: string | null;
-}) {
+function TreeBranch({ node, depth, writingPath }: { node: TreeNode; depth: number; writingPath: string | null }) {
   const activeFilePath = useProjectStore((s) => s.activeFilePath);
   const setActiveFile = useProjectStore((s) => s.setActiveFile);
 
@@ -56,21 +48,29 @@ function TreeBranch({
             <button
               type="button"
               onClick={() => child.isFile && setActiveFile(child.path)}
-              className={cn(
-                'flex w-full items-center gap-1.5 rounded-md py-1 pr-2 text-left text-[13px] transition',
-                child.isFile ? 'text-ink-soft hover:bg-surface-2' : 'text-ink font-medium',
-                isActive && !isWriting && 'bg-brand-50 text-brand-700',
-                isWriting && 'bg-indigo-50 text-indigo-700',
-              )}
-              style={{ paddingLeft: `${depth * 12 + 8}px` }}
+              className={cn('flex w-full items-center gap-1.5 rounded-md py-1 pr-2 text-left text-[13px] transition')}
+              style={{
+                paddingLeft: `${depth * 12 + 8}px`,
+                background: isWriting || isActive ? 'var(--indigo-lt)' : undefined,
+                color: isWriting || isActive
+                  ? 'var(--indigo)'
+                  : child.isFile
+                    ? 'var(--ink-soft)'
+                    : 'var(--ink)',
+                fontWeight: child.isFile ? undefined : 500,
+              }}
+              onMouseEnter={(e) => {
+                if (!isActive && !isWriting) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.04)';
+              }}
+              onMouseLeave={(e) => {
+                if (!isActive && !isWriting) (e.currentTarget as HTMLButtonElement).style.background = '';
+              }}
             >
-              {/* Icon */}
               {child.isFile ? (
                 isWriting ? (
-                  // Animated write indicator
                   <span className="relative flex h-3.5 w-3.5 items-center justify-center">
-                    <span className="absolute h-3.5 w-3.5 animate-ping rounded-full bg-indigo-400 opacity-50" />
-                    <span className="relative h-2 w-2 rounded-full bg-indigo-500" />
+                    <span className="absolute h-3.5 w-3.5 animate-ping rounded-full opacity-40" style={{ background: 'var(--indigo)' }} />
+                    <span className="relative h-2 w-2 rounded-full" style={{ background: 'var(--indigo)' }} />
                   </span>
                 ) : (
                   <svg className="h-3.5 w-3.5 shrink-0 opacity-60" viewBox="0 0 16 16" fill="currentColor">
@@ -84,7 +84,7 @@ function TreeBranch({
               )}
               <span className="truncate">{child.name}</span>
               {isWriting && (
-                <span className="text-indigo-400 ml-auto shrink-0 text-[10px]">writing</span>
+                <span className="ml-auto shrink-0 text-[10px]" style={{ color: 'var(--indigo)' }}>writing</span>
               )}
             </button>
             {!child.isFile && (
@@ -97,7 +97,6 @@ function TreeBranch({
   );
 }
 
-/** File tree with live write-indicator while the agent is active. */
 export function FileTree() {
   const files = useProjectStore((s) => s.files);
   const { isRunning, lastWrittenFile } = useAgentStatus();
@@ -106,10 +105,10 @@ export function FileTree() {
   if (Object.keys(files).length === 0) {
     return (
       <div className="flex flex-col items-center gap-2 px-3 py-8 text-center">
-        <svg className="text-ink-muted h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1}>
+        <svg className="h-8 w-8" style={{ color: 'var(--ink-muted)' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v8.25" />
         </svg>
-        <p className="text-ink-muted text-[12px]">No files yet</p>
+        <p className="text-[12px]" style={{ color: 'var(--ink-muted)' }}>No files yet</p>
       </div>
     );
   }
@@ -117,11 +116,12 @@ export function FileTree() {
   return (
     <nav className="overflow-y-auto py-1" aria-label="Project files">
       {isRunning && (
-        <div className="mx-2 mb-2 flex items-center gap-1.5 rounded-md bg-indigo-50 px-2 py-1.5">
-          <span className="dot-1 h-1.5 w-1.5 rounded-full bg-indigo-500 inline-block" />
-          <span className="dot-2 h-1.5 w-1.5 rounded-full bg-indigo-500 inline-block" />
-          <span className="dot-3 h-1.5 w-1.5 rounded-full bg-indigo-500 inline-block" />
-          <span className="text-indigo-700 text-[11px] font-medium">Agent writing…</span>
+        <div className="mx-2 mb-2 flex items-center gap-1.5 rounded-md px-2 py-1.5"
+          style={{ background: 'var(--indigo-lt)' }}>
+          <span className="dot-1 inline-block h-1.5 w-1.5 rounded-full" style={{ background: 'var(--indigo)' }} />
+          <span className="dot-2 inline-block h-1.5 w-1.5 rounded-full" style={{ background: 'var(--indigo)' }} />
+          <span className="dot-3 inline-block h-1.5 w-1.5 rounded-full" style={{ background: 'var(--indigo)' }} />
+          <span className="text-[11px] font-medium" style={{ color: 'var(--indigo)' }}>Agent writing…</span>
         </div>
       )}
       <TreeBranch node={tree} depth={0} writingPath={isRunning ? lastWrittenFile : null} />

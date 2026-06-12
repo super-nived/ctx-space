@@ -5,11 +5,23 @@ import { createRoot } from 'react-dom/client';
 
 import { CopilotProvider } from '@/app/CopilotProvider';
 import App from '@/App';
+import { resolveIsDark, useThemeStore } from '@/store/themeStore';
 
-// NOTE: StrictMode is intentionally omitted. Its dev-only double-mount makes
-// CopilotKit's AG-UI agent connect twice at once, which collides into
-// "Cannot send RUN_STARTED: the run has already errored". CopilotKit's agent
-// connection isn't double-connect-safe, so we mount once.
+// Apply theme class to <html> before first paint, and keep it in sync.
+function applyTheme() {
+  const { theme } = useThemeStore.getState();
+  document.documentElement.classList.toggle('dark', resolveIsDark(theme));
+}
+
+applyTheme();
+useThemeStore.subscribe((s) => {
+  document.documentElement.classList.toggle('dark', resolveIsDark(s.theme));
+});
+
+// Watch system preference changes.
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+
+// NOTE: StrictMode omitted — CopilotKit AG-UI double-mount causes RUN_ERROR collision.
 createRoot(document.getElementById('root')!).render(
   <CopilotProvider>
     <App />
