@@ -55,3 +55,44 @@
     scrollbar-color: var(--color-border-subtle) transparent;
   }
 }
+
+/* ── Agent activity animations ───────────────────────────────────────────── */
+
+@keyframes progress-slide {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+
+@keyframes dot-bounce {
+  0%, 80%, 100% { transform: translateY(0);    opacity: 0.4; }
+  40%            { transform: translateY(-4px); opacity: 1;   }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+@keyframes pulse-ring {
+  0%   { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.35); }
+  70%  { box-shadow: 0 0 0 6px rgba(99, 102, 241, 0);  }
+  100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0);    }
+}
+
+.agent-progress-bar {
+  animation: progress-slide 1.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.dot-1 { animation: dot-bounce 1.2s ease-in-out infinite 0ms;   }
+.dot-2 { animation: dot-bounce 1.2s ease-in-out infinite 160ms; }
+.dot-3 { animation: dot-bounce 1.2s ease-in-out infinite 320ms; }
+
+.shimmer-row {
+  background: linear-gradient(90deg, #f4f4f5 25%, #e8e8ec 50%, #f4f4f5 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+
+.building-ring {
+  animation: pulse-ring 1.8s ease-out infinite;
+}
