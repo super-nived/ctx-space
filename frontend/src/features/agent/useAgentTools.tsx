@@ -16,6 +16,7 @@ export function useAgentTools() {
   const deleteFile = useProjectStore((s) => s.deleteFile);
   const setStatus = useProjectStore((s) => s.setStatus);
   const setActiveFile = useProjectStore((s) => s.setActiveFile);
+  const setProjectName = useProjectStore((s) => s.setProjectName);
 
   // proposePlan — render-and-wait approval card (human-in-the-loop).
   useHumanInTheLoop({
@@ -27,19 +28,25 @@ export function useAgentTools() {
       features: z.array(z.string()).describe('3-6 feature bullets'),
       files: z.array(z.string()).describe('Files that will be created'),
     }),
-    render: ({ args, status, respond }) => (
-      <PlanCard
-        appName={args.appName ?? ''}
-        features={args.features ?? []}
-        files={args.files ?? []}
-        status={status}
-        onApprove={() => {
-          setStatus('building');
-          respond?.({ approved: true });
-        }}
-        onRequestChanges={(note) => respond?.({ approved: false, note })}
-      />
-    ),
+    render: ({ args, status, respond }) => {
+      // Set the project name as soon as the agent proposes the plan.
+      if (args.appName && args.appName !== 'Untitled') {
+        setProjectName(args.appName);
+      }
+      return (
+        <PlanCard
+          appName={args.appName ?? ''}
+          features={args.features ?? []}
+          files={args.files ?? []}
+          status={status}
+          onApprove={() => {
+            setStatus('building');
+            respond?.({ approved: true });
+          }}
+          onRequestChanges={(note) => respond?.({ approved: false, note })}
+        />
+      );
+    },
   });
 
   // writeFile — create or update a file (the core code-gen action).

@@ -12,9 +12,9 @@ import App from '@/App';
   const _fetch = window.fetch.bind(window);
   window.fetch = async function (...args) {
     const res = await _fetch(...args);
-    // Only intercept the agent endpoint (POST /).
+    // Only intercept the CopilotKit runtime endpoint (all SSE agent calls go here).
     const url = typeof args[0] === 'string' ? args[0] : (args[0] as Request).url;
-    if (!url.endsWith('/') && !url.match(/localhost:\d+\/?$/)) return res;
+    if (!url.includes('/api/copilotkit') && !url.includes('localhost:8000')) return res;
     if (res.headers.get('content-type')?.includes('text/event-stream') && res.body) {
       const [a, b] = res.body.tee();
       // Read USAGE frames from the cloned stream without blocking the original.
