@@ -25,48 +25,65 @@ def _headers(token: str) -> dict[str, str]:
 
 
 def _slugify(name: str) -> str:
-    """Convert a project name to a valid GitHub repo slug."""
     slug = name.lower().strip()
     slug = re.sub(r"[^a-z0-9]+", "-", slug)
     slug = slug.strip("-")
     return slug or "ctx-space-project"
 
 
-async def _get_or_create_repo(
+async def _ensure_repo(
     client: httpx.AsyncClient,
     token: str,
-    repo_name: str,
+    repo_full_name: str,
     description: str,
 ) -> dict[str, Any]:
-    """Return the repo metadata, creating it if it doesn't exist."""
-    # Check if it exists
-    r = await client.get(f"{_BASE}/repos/{repo_name}", headers=_headers(token))
+    """Get existing repo or create a fresh one.
+
+    If repo exists but is empty/broken (no commits), delete and recreate it
+    so we start from a clean slate.
+    """
+    username = repo_full_name.split("/")[0]
+    repo_name = repo_full_name.split("/")[1]
+
+    # Check if repo exists
+    r = await client.get(f"{_BASE}/repos/{repo_full_name}", headers=_headers(token))
+
     if r.status_code == 200:
-        return r.json()
+        repo = r.json()
+        # Check if it has any commits — empty repos cause 409 on blob upload
+        ref_r = await client.get(
+            f"{_BASE}/repos/{repo_full_name}/git/refs",
+            headers=_headers(token),
+        )
+        has_commits = ref_r.status_code == 200 and len(ref_r.json()) > 0
 
-    # Create it
-    owner_login = repo_name.split("/")[0]
-    name = repo_name.split("/")[1]
+        if not has_commits:
+            # Delete the empty/broken repo and recreate
+            await client.delete(
+                f"{_BASE}/repos/{repo_full_name}", headers=_headers(token)
+            )
+        else:
+            return repo
 
-    # Check if owner is an org
-    user_r = await client.get(f"{_BASE}/user", headers=_headers(token))
-    user_r.raise_for_status()
-    me = user_r.json()["login"]
-
-    if owner_login == me:
-        create_url = f"{_BASE}/user/repos"
-    else:
-        create_url = f"{_BASE}/orgs/{owner_login}/repos"
-
+    # Create fresh repo WITH auto_init so GitHub creates the initial commit/tree.
+    # Without this, blob uploads return 409 because the repo has no git objects yet.
     payload = {
-        "name": name,
+        "name": repo_name,
         "description": description,
         "private": False,
-        "auto_init": False,
+        "auto_init": True,
     }
-    cr = await client.post(create_url, headers=_headers(token), json=payload)
+    cr = await client.post(
+        f"{_BASE}/user/repos", headers=_headers(token), json=payload
+    )
     cr.raise_for_status()
-    return cr.json()
+    # Small delay to let GitHub finish initialising the repo internals
+    import asyncio
+    await asyncio.sleep(2)
+    # Re-fetch so we get the correct default_branch and latest commit info
+    r2 = await client.get(f"{_BASE}/repos/{username}/{repo_name}", headers=_headers(token))
+    r2.raise_for_status()
+    return r2.json()
 
 
 async def push_project_to_github(
@@ -78,17 +95,16 @@ async def push_project_to_github(
 ) -> dict[str, str]:
     """Push all project files to GitHub as a single commit.
 
-    Creates the repo if it doesn't exist.
+    Creates the repo if it doesn't exist. Re-creates it if it's empty/broken.
     Returns {"repo_url": "...", "repo_name": "...", "html_url": "..."}.
     """
     slug = _slugify(project_name)
-    # Append short project id suffix to avoid collisions
     repo_short_name = f"ctx-{slug}-{project_id[:6]}"
     repo_full_name = f"{github_username}/{repo_short_name}"
 
-    async with httpx.AsyncClient(timeout=30) as client:
-        # 1. Ensure repo exists
-        repo = await _get_or_create_repo(
+    async with httpx.AsyncClient(timeout=60) as client:
+        # 1. Ensure repo exists and is healthy
+        repo = await _ensure_repo(
             client,
             token,
             repo_full_name,
@@ -106,7 +122,6 @@ async def push_project_to_github(
         )
         if ref_r.status_code == 200:
             parent_sha = ref_r.json()["object"]["sha"]
-            # Get tree SHA from the commit
             commit_r = await client.get(
                 f"{_BASE}/repos/{repo_full_name}/git/commits/{parent_sha}",
                 headers=_headers(token),
@@ -164,20 +179,21 @@ async def push_project_to_github(
         commit_r.raise_for_status()
         new_commit_sha = commit_r.json()["sha"]
 
-        # 6. Update (or create) the branch ref
+        # 6. Update or create the branch ref
         ref_url = f"{_BASE}/repos/{repo_full_name}/git/refs/heads/{default_branch}"
         update_r = await client.patch(
             ref_url,
             headers=_headers(token),
             json={"sha": new_commit_sha, "force": False},
         )
-        if update_r.status_code == 422:
+        if update_r.status_code in (404, 422):
             # Ref doesn't exist yet — create it
-            await client.post(
+            create_r = await client.post(
                 f"{_BASE}/repos/{repo_full_name}/git/refs",
                 headers=_headers(token),
                 json={"ref": f"refs/heads/{default_branch}", "sha": new_commit_sha},
             )
+            create_r.raise_for_status()
         else:
             update_r.raise_for_status()
 
