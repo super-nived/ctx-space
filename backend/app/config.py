@@ -21,9 +21,29 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # --- OpenAI ---
-    openai_api_key: str = Field(..., alias="OPENAI_API_KEY")
+    # --- LLM provider selection ---
+    # This branch (ctx-space-claude) runs on Claude via the Agent SDK.
+    # "claude" -> CtxSpaceClaudeAgent (Agent SDK, subscription auth)
+    # "openai" -> CtxSpaceAgent (kept for parity with the main branch)
+    llm_provider: str = Field("claude", alias="LLM_PROVIDER")
+
+    # --- OpenAI (optional on this branch; required only if llm_provider="openai") ---
+    openai_api_key: str = Field("", alias="OPENAI_API_KEY")
     openai_model: str = Field("gpt-5-mini", alias="OPENAI_MODEL")
+
+    # --- Claude (Agent SDK) ---
+    # Long-lived OAuth token from `claude setup-token` (subscription auth, ~1yr).
+    # IMPORTANT: do NOT set ANTHROPIC_API_KEY in the same environment — per the SDK
+    # auth precedence, an API key OVERRIDES this token and would bill differently.
+    claude_code_oauth_token: str = Field("", alias="CLAUDE_CODE_OAUTH_TOKEN")
+    # Default model for code generation. Sonnet balances quality/credit; bump to
+    # claude-opus-4-8 for the hardest prompts.
+    claude_model: str = Field("claude-sonnet-4-6", alias="CLAUDE_MODEL")
+    # Fallback model if the primary is unavailable / overloaded.
+    claude_fallback_model: str = Field("claude-haiku-4-5-20251001", alias="CLAUDE_FALLBACK_MODEL")
+    # Hard per-run cost ceiling (USD-equivalent) to protect the monthly Agent SDK
+    # credit. 0 disables the guard.
+    claude_max_budget_usd: float = Field(0.0, alias="CLAUDE_MAX_BUDGET_USD")
 
     # --- DataSpace MCP ---
     mcp_server_url: str = Field(

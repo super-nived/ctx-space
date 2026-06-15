@@ -14,12 +14,31 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
-from app.agent import CtxSpaceAgent
 from app.config import get_settings
 from app.projects import router as projects_router
 
 settings = get_settings()
-agent = CtxSpaceAgent(settings)
+
+
+def _build_agent(cfg):
+    """Select the LLM backend from settings.llm_provider.
+
+    "claude" -> CtxSpaceClaudeAgent (Agent SDK, subscription auth) — default on
+                 the ctx-space-claude branch.
+    "openai" -> CtxSpaceAgent (OpenAI chat-completions) — parity with main.
+    Both expose the same run()/_last_usage contract, so main.py is provider-agnostic.
+    """
+    provider = (cfg.llm_provider or "claude").strip().lower()
+    if provider == "openai":
+        from app.agent import CtxSpaceAgent
+
+        return CtxSpaceAgent(cfg)
+    from app.agent_claude import CtxSpaceClaudeAgent
+
+    return CtxSpaceClaudeAgent(cfg)
+
+
+agent = _build_agent(settings)
 
 # In-memory usage store: thread_id -> cumulative {input_tokens, output_tokens, cost_usd}
 # Cleared on server restart; frontend persists to PocketBase after reading.
@@ -42,7 +61,9 @@ app.include_router(projects_router)
 @app.get("/health")
 def health() -> dict[str, str]:
     """Liveness probe."""
-    return {"status": "ok", "model": settings.openai_model}
+    provider = (settings.llm_provider or "claude").strip().lower()
+    model = settings.claude_model if provider == "claude" else settings.openai_model
+    return {"status": "ok", "provider": provider, "model": model}
 
 
 @app.get("/api/usage")
