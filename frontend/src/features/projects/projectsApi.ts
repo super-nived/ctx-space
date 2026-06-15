@@ -5,7 +5,7 @@
  */
 
 // FastAPI base URL. In dev the agent runs at :8000; reuse that origin.
-const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8000';
+const API_BASE = import.meta.env.VITE_API_BASE ?? '';
 
 export interface TokenUsage {
   input_tokens: number;

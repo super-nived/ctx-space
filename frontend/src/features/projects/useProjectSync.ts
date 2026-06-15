@@ -16,7 +16,7 @@ import { projectsApi } from './projectsApi';
 
 const AGENT_ID = 'ctx_space';
 const SAVE_DEBOUNCE_MS = 1200;
-const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8000';
+const API_BASE = import.meta.env.VITE_API_BASE ?? '';
 
 export function useProjectSync() {
   const { agent } = useAgent({ agentId: AGENT_ID });

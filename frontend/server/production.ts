@@ -18,9 +18,12 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DIST = path.resolve(__dirname, '..', 'dist');
 const AGENT_URL = process.env.AGENT_URL ?? 'http://backend:8000/';
+const BACKEND_ORIGIN = new URL(AGENT_URL).origin; // e.g. http://backend:8000
 const PORT = parseInt(process.env.PORT ?? '3000', 10);
 const AGENT_NAME = 'ctx_space';
 const COPILOT_BASE = '/api/copilotkit';
+// All /api/* calls except /api/copilotkit are proxied straight to FastAPI.
+const API_PROXY_BASE = '/api/';
 
 const MIME: Record<string, string> = {
   '.html': 'text/html',
@@ -55,12 +58,27 @@ async function startServer() {
   const server = http.createServer((req, res) => {
     const url = req.url ?? '/';
 
-    // CopilotKit API
+    // CopilotKit runtime — handled in-process
     if (url.startsWith(COPILOT_BASE)) {
       copilotListener(req, res, () => {
         res.writeHead(404);
         res.end('not found');
       });
+      return;
+    }
+
+    // All other /api/* calls proxy to FastAPI backend
+    if (url.startsWith(API_PROXY_BASE)) {
+      const target = new URL(url, BACKEND_ORIGIN);
+      const proxyReq = http.request(
+        { host: target.hostname, port: target.port, path: target.pathname + target.search, method: req.method, headers: { ...req.headers, host: target.host } },
+        (proxyRes) => {
+          res.writeHead(proxyRes.statusCode ?? 200, proxyRes.headers);
+          proxyRes.pipe(res);
+        },
+      );
+      proxyReq.on('error', () => { res.writeHead(502); res.end('Backend unreachable'); });
+      req.pipe(proxyReq);
       return;
     }
 

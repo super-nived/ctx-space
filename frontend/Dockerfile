@@ -1,5 +1,11 @@
 FROM node:22-slim AS builder
 
+# VITE_API_BASE is baked into the JS bundle at build time.
+# Pass the public URL of the backend so the browser can reach it.
+# Default: empty string = same origin (works when frontend proxies to backend).
+ARG VITE_API_BASE=""
+ENV VITE_API_BASE=$VITE_API_BASE
+
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
