@@ -325,23 +325,21 @@ class CtxSpaceClaudeAgent:
 
     # ------------------------------------------------------------------- mcp --
     def _mcp_servers(self) -> dict[str, Any]:
-        """The in-process frontend-tools server plus DataSpace MCP over HTTP."""
+        """The in-process frontend-tools server plus all configured MCP servers over HTTP."""
         servers: dict[str, Any] = {_TOOLS_SERVER: self._tools_server}
-        url = (self._settings.mcp_server_url or "").strip()
-        if url:
-            servers[self._settings.mcp_server_label] = {"type": "http", "url": url}
+        for entry in self._settings.mcp_servers_list:
+            servers[entry["label"]] = {"type": "http", "url": entry["url"]}
         return servers
 
     def _allowed_tools(self) -> list[str]:
-        """Frontend tools + every tool from the DataSpace MCP server."""
+        """Frontend tools + every tool from every configured MCP server."""
         allowed = [
             _frontend_tool_full_name("proposePlan"),
             _frontend_tool_full_name("writeFile"),
             _frontend_tool_full_name("deleteFile"),
         ]
-        # Allow all DataSpace MCP tools by wildcard prefix.
-        if (self._settings.mcp_server_url or "").strip():
-            allowed.append(f"mcp__{self._settings.mcp_server_label}__*")
+        for entry in self._settings.mcp_servers_list:
+            allowed.append(f"mcp__{entry['label']}__*")
         return allowed
 
     # ------------------------------------------------------------------- run --

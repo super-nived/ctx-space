@@ -1,0 +1,10 @@
+# This file is auto-merged by docker compose for local dev overrides.
+# In production (VM/cloud), do NOT copy this file — use docker-compose.yml only.
+#
+# Overrides: mounts live source code so you can edit without rebuilding.
+services:
+  backend:
+    volumes:
+      - ./backend/app:/app/app      # hot-reload app code
+      - claude_home:/root/.claude
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload

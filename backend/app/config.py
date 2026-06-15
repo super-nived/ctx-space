@@ -45,11 +45,30 @@ class Settings(BaseSettings):
     # credit. 0 disables the guard.
     claude_max_budget_usd: float = Field(0.0, alias="CLAUDE_MAX_BUDGET_USD")
 
-    # --- DataSpace MCP ---
+    # --- MCP servers ---
+    # Single-server legacy config (still works):
+    #   MCP_SERVER_URL=http://...  MCP_SERVER_LABEL=myserver
+    # Multi-server config (JSON, takes precedence when set):
+    #   MCP_SERVERS=[{"label":"dataspace","url":"http://..."},{"label":"scaffold","url":"http://..."}]
     mcp_server_url: str = Field(
         "https://dataspace-mcp.onrender.com/mcp", alias="MCP_SERVER_URL"
     )
     mcp_server_label: str = Field("mps", alias="MCP_SERVER_LABEL")
+    mcp_servers_json: str = Field("", alias="MCP_SERVERS")
+
+    @property
+    def mcp_servers_list(self) -> list[dict[str, str]]:
+        """Return all MCP servers as [{"label": ..., "url": ...}, ...].
+
+        If MCP_SERVERS JSON is set, use that exclusively.
+        Otherwise fall back to the single MCP_SERVER_URL / MCP_SERVER_LABEL pair.
+        """
+        if self.mcp_servers_json.strip():
+            import json as _json
+            return _json.loads(self.mcp_servers_json)
+        if self.mcp_server_url.strip():
+            return [{"label": self.mcp_server_label, "url": self.mcp_server_url}]
+        return []
 
     # --- CORS ---
     allowed_origins: str = Field("http://localhost:5173", alias="ALLOWED_ORIGINS")

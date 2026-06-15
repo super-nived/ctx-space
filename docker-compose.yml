@@ -1,0 +1,60 @@
+services:
+
+  # ── PocketBase (project storage) ───────────────────────────────────────────
+  pocketbase:
+    build: ./pocketbase
+    restart: unless-stopped
+    volumes:
+      - pb_data:/pb_data
+    ports:
+      - "${PB_PORT:-8090}:8090"          # admin UI: http://localhost:8090/_/
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8090/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── FastAPI + Claude Agent SDK ──────────────────────────────────────────────
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      pocketbase:
+        condition: service_healthy
+    env_file: ./backend/.env
+    environment:
+      # POCKETBASE_URL comes from .env — set to http://pocketbase:8090 for
+      # fully-containerised deploy, or http://host.docker.internal:8090 to
+      # use a PocketBase already running on the host machine.
+      POCKETBASE_URL: "${POCKETBASE_URL:-http://pocketbase:8090}"
+      ALLOWED_ORIGINS: "http://localhost:3000,http://localhost:3001,${EXTRA_ORIGINS:-}"
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    # Claude Code CLI needs a HOME to find its config (~/.claude)
+    # extra_hosts lets the container resolve host.docker.internal on Linux
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - claude_home:/root/.claude
+
+  # ── React SPA + CopilotKit Node runtime ────────────────────────────────────
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      AGENT_URL: http://backend:8000/
+      PORT: "3000"
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+
+volumes:
+  pb_data:
+  claude_home:   # persists claude auth across backend restarts
