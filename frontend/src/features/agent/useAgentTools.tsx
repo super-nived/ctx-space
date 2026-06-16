@@ -9,6 +9,7 @@ import { z } from 'zod';
 
 import { useProjectStore } from '@/store/projectStore';
 
+import { DataSpaceConnectCard } from './DataSpaceConnectCard';
 import { PlanCard } from './PlanCard';
 
 export function useAgentTools() {
@@ -47,6 +48,18 @@ export function useAgentTools() {
         />
       );
     },
+  });
+
+  // connectDataSpace — render-and-wait connect form (human-in-the-loop).
+  // Credentials are returned as the tool result and never leave this chat turn.
+  useHumanInTheLoop({
+    name: 'connectDataSpace',
+    description:
+      'Show a form asking the user to paste their DataSpace connection credentials.',
+    parameters: z.object({}),
+    render: ({ status, respond }) => (
+      <DataSpaceConnectCard status={status} onSubmit={(creds) => respond?.(creds)} />
+    ),
   });
 
   // writeFile — create or update a file (the core code-gen action).

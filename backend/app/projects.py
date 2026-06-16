@@ -20,6 +20,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from app.config import get_settings
+from app.deploy import deploy_to_netlify, deploy_to_render
 from app.github import push_project_to_github
 from app.pocketbase import PocketBaseClient
 
@@ -144,5 +145,84 @@ async def publish_project(project_id: str, body: PublishRequest = PublishRequest
         await _pb.update_project(project_id, {"github_url": result["repo_url"]})
     except Exception:  # noqa: BLE001
         pass  # Non-fatal — URL is returned to the frontend either way
+
+    return result
+
+
+# ── Deploy ─────────────────────────────────────────────────────────────────────
+
+class DeployRequest(BaseModel):
+    target: str = "netlify"  # "netlify" | "render" | "both"
+
+
+@router.post("/{project_id}/deploy")
+async def deploy_project(project_id: str, body: DeployRequest = DeployRequest()) -> dict[str, Any]:
+    """Deploy the project to Netlify (frontend) and optionally Render (middleware).
+
+    Netlify: we build the project ourselves and upload the static dist/ output —
+    no GitHub publish required. Render: deploys from the GitHub repo, so publish
+    first (see /publish above).
+
+    Stores deploy URLs back to the project record in PocketBase.
+    """
+    settings = get_settings()
+
+    project = await _pb.get_project(project_id)
+    project_name: str = project.get("name", "Untitled")
+    github_url: str = project.get("github_url", "")
+    files: dict[str, str] = project.get("files", {})
+
+    # Existing deploy IDs (for re-deploy without creating new sites)
+    existing_netlify_id: str | None = project.get("netlify_site_id") or None
+    existing_render_id: str | None = project.get("render_service_id") or None
+
+    result: dict[str, Any] = {}
+
+    # ── Netlify ──
+    if body.target in ("netlify", "both"):
+        if not settings.netlify_token:
+            raise HTTPException(status_code=503, detail="NETLIFY_TOKEN not configured.")
+        if not files:
+            raise HTTPException(status_code=400, detail="No files to deploy yet.")
+        try:
+            netlify = await deploy_to_netlify(
+                token=settings.netlify_token,
+                project_name=project_name,
+                project_id=project_id,
+                files=files,
+                existing_site_id=existing_netlify_id,
+            )
+            result["netlify"] = netlify
+            await _pb.update_project(project_id, {
+                "netlify_site_id": netlify["site_id"],
+                "netlify_url": netlify["site_url"],
+            })
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(status_code=502, detail=f"Netlify deploy failed: {exc}") from exc
+
+    # ── Render ──
+    if body.target in ("render", "both"):
+        if not settings.render_token:
+            raise HTTPException(status_code=503, detail="RENDER_TOKEN not configured.")
+        if not github_url:
+            raise HTTPException(
+                status_code=400,
+                detail="Publish to GitHub first — Render deploys from your repo.",
+            )
+        try:
+            render = await deploy_to_render(
+                token=settings.render_token,
+                project_name=project_name,
+                project_id=project_id,
+                github_repo_url=github_url,
+                existing_service_id=existing_render_id,
+            )
+            result["render"] = render
+            await _pb.update_project(project_id, {
+                "render_service_id": render["service_id"],
+                "render_url": render["service_url"],
+            })
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(status_code=502, detail=f"Render deploy failed: {exc}") from exc
 
     return result

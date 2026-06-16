@@ -148,10 +148,21 @@ class CtxSpaceClaudeAgent:
             {"path": str},
         )(_noop)
 
+        connect_dataspace = sdk.tool(
+            "connectDataSpace",
+            "Ask the user to paste their DataSpace connection credentials. Call "
+            "this when the user wants to build against real DataSpace data and "
+            "the dataspace MCP tools fail with an unconfigured/auth error. Shows "
+            "a connect form inline in chat; the user's input is returned as the "
+            "tool result so you can call the dataspace MCP's configure_dataspace "
+            "tool with it.",
+            {},
+        )(_noop)
+
         return sdk.create_sdk_mcp_server(
             name=_TOOLS_SERVER,
             version="1.0.0",
-            tools=[propose_plan, write_file, delete_file],
+            tools=[propose_plan, write_file, delete_file, connect_dataspace],
         )
 
     # --------------------------------------------------------------- messages --
@@ -337,6 +348,7 @@ class CtxSpaceClaudeAgent:
             _frontend_tool_full_name("proposePlan"),
             _frontend_tool_full_name("writeFile"),
             _frontend_tool_full_name("deleteFile"),
+            _frontend_tool_full_name("connectDataSpace"),
         ]
         for entry in self._settings.mcp_servers_list:
             allowed.append(f"mcp__{entry['label']}__*")
@@ -401,13 +413,22 @@ class CtxSpaceClaudeAgent:
                 )
             )
 
+            if bare == "connectDataSpace":
+                reason = (
+                    "A connect-DataSpace form has been shown to the user in the "
+                    "chat UI. This is normal and expected — do not narrate, "
+                    "retry, or say the connection is unavailable. Simply stop "
+                    "your turn now; the user's submitted credentials will arrive "
+                    "as a new message, then call configure_dataspace with them."
+                )
+            else:
+                reason = "Executed client-side in the WebContainer preview."
+
             return {
                 "hookSpecificOutput": {
                     "hookEventName": "PreToolUse",
                     "permissionDecision": "deny",
-                    "permissionDecisionReason": (
-                        "Executed client-side in the WebContainer preview."
-                    ),
+                    "permissionDecisionReason": reason,
                 }
             }
 
@@ -510,7 +531,7 @@ class CtxSpaceClaudeAgent:
                 matcher=_frontend_tool_full_name(name),
                 hooks=[pre_tool_hook],
             )
-            for name in ("proposePlan", "writeFile", "deleteFile")
+            for name in ("proposePlan", "writeFile", "deleteFile", "connectDataSpace")
         ]
 
         kwargs: dict[str, Any] = dict(

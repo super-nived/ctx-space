@@ -5,7 +5,10 @@ services:
     build: ./pocketbase
     restart: unless-stopped
     volumes:
-      - pb_data:/pb_data
+      # Defaults to a Docker-managed named volume. Set PB_DATA_DIR to a host
+      # path to use an existing PocketBase data directory instead (e.g. one
+      # from a prior native install) so project history isn't orphaned.
+      - ${PB_DATA_DIR:-pb_data}:/pb_data
     ports:
       - "${PB_PORT:-8090}:8090"          # admin UI: http://localhost:8090/_/
     healthcheck:
@@ -23,10 +26,6 @@ services:
         condition: service_healthy
     env_file: ./backend/.env
     environment:
-      # POCKETBASE_URL comes from .env — set to http://pocketbase:8090 for
-      # fully-containerised deploy, or http://host.docker.internal:8090 to
-      # use a PocketBase already running on the host machine.
-      POCKETBASE_URL: "${POCKETBASE_URL:-http://pocketbase:8090}"
       ALLOWED_ORIGINS: "http://localhost:3000,http://localhost:3001,${EXTRA_ORIGINS:-}"
     ports:
       - "${BACKEND_PORT:-8000}:8000"

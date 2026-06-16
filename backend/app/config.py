@@ -55,6 +55,9 @@ class Settings(BaseSettings):
     )
     mcp_server_label: str = Field("mps", alias="MCP_SERVER_LABEL")
     mcp_servers_json: str = Field("", alias="MCP_SERVERS")
+    # Fixed environment passed to the dataspace MCP's configure_dataspace tool —
+    # not user-facing; only client_id/secret/company_code/plant_code vary per user.
+    mcp_environment: str = Field("uat", alias="MCP_ENVIRONMENT")
 
     @property
     def mcp_servers_list(self) -> list[dict[str, str]]:
@@ -76,6 +79,10 @@ class Settings(BaseSettings):
     # --- GitHub (Publish — push generated code to your account) ---
     github_token: str = Field("", alias="GITHUB_TOKEN")
     github_username: str = Field("", alias="GITHUB_USERNAME")
+
+    # --- Deploy ---
+    netlify_token: str = Field("", alias="NETLIFY_TOKEN")
+    render_token: str = Field("", alias="RENDER_TOKEN")
 
     # --- PocketBase (project storage) ---
     pocketbase_url: str = Field("http://127.0.0.1:8090", alias="POCKETBASE_URL")

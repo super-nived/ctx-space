@@ -6,6 +6,7 @@ import { projectsApi } from '@/features/projects/projectsApi';
 import { useAgentStatus } from '@/features/agent/useAgentStatus';
 import { useAgent } from '@copilotkit/react-core/v2';
 import { PublishModal } from '@/features/publish/PublishModal';
+import { DeployModal } from '@/features/deploy/DeployModal';
 import { useProjectStore } from '@/store/projectStore';
 import { useSessionStore } from '@/store/sessionStore';
 import { useThemeStore, resolveIsDark } from '@/store/themeStore';
@@ -193,6 +194,16 @@ export function TopBar({ onToggleMobileView, mobileView, onOpenHistory }: TopBar
   const { isRunning, phase, lastWrittenFile } = useAgentStatus();
   const { agent } = useAgent({ agentId: 'ctx_space' });
   const [publishOpen, setPublishOpen] = useState(false);
+  const [deployOpen, setDeployOpen] = useState(false);
+  const [githubUrl, setGithubUrl] = useState<string | undefined>(undefined);
+
+  // Load github_url from the project record when the project changes.
+  useEffect(() => {
+    if (!projectId) return;
+    projectsApi.get(projectId)
+      .then((p) => setGithubUrl(p.github_url))
+      .catch(() => {});
+  }, [projectId]);
 
   // Extract the last user message to use as the default commit message.
   const lastUserMessage: string = (() => {
@@ -212,6 +223,9 @@ export function TopBar({ onToggleMobileView, mobileView, onOpenHistory }: TopBar
   })();
 
   const hasFiles = Object.keys(files).length > 0;
+  const hasMiddleware = Object.keys(files).some(
+    (p) => p.endsWith('.py') || p === 'requirements.txt' || p.startsWith('app/'),
+  );
   const downloadZip = () => downloadProjectZip(projectName, files);
 
   const newProject = () => {
@@ -285,6 +299,16 @@ export function TopBar({ onToggleMobileView, mobileView, onOpenHistory }: TopBar
         >
           Publish
         </button>
+        <button
+          type="button"
+          onClick={() => setDeployOpen(true)}
+          disabled={!hasFiles}
+          title={hasFiles ? 'Deploy project live' : 'No files to deploy yet'}
+          className="rounded-md border px-3 py-1.5 text-[13px] font-medium transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
+          style={{ borderColor: 'var(--border)', color: 'var(--ink-soft)' }}
+        >
+          Deploy
+        </button>
       </div>
 
       {publishOpen && projectId && (
@@ -292,7 +316,25 @@ export function TopBar({ onToggleMobileView, mobileView, onOpenHistory }: TopBar
           projectId={projectId}
           projectName={projectName}
           defaultCommitMessage={lastUserMessage}
-          onClose={() => setPublishOpen(false)}
+          onClose={() => {
+            setPublishOpen(false);
+            // Refresh github_url in case user just published for the first time
+            if (projectId) {
+              projectsApi.get(projectId)
+                .then((p) => setGithubUrl(p.github_url))
+                .catch(() => {});
+            }
+          }}
+        />
+      )}
+
+      {deployOpen && projectId && (
+        <DeployModal
+          projectId={projectId}
+          projectName={projectName}
+          hasMiddleware={hasMiddleware}
+          githubUrl={githubUrl}
+          onClose={() => setDeployOpen(false)}
         />
       )}
     </header>

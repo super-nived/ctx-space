@@ -26,6 +26,9 @@ export interface ProjectFull extends ProjectSummary {
   files: Record<string, string>;
   messages: unknown[];
   preview_entry?: string;
+  github_url?: string;
+  netlify_url?: string;
+  render_url?: string;
 }
 
 export interface ProjectUpsert {
