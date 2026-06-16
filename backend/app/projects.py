@@ -95,8 +95,12 @@ async def delete_project(project_id: str) -> dict[str, str]:
         raise HTTPException(status_code=502, detail=f"PocketBase error: {exc}") from exc
 
 
+class PublishRequest(BaseModel):
+    commit_message: str | None = None
+
+
 @router.post("/{project_id}/publish")
-async def publish_project(project_id: str) -> dict[str, str]:
+async def publish_project(project_id: str, body: PublishRequest = PublishRequest()) -> dict[str, str]:
     """Push all project files to GitHub as a new (or updated) repo.
 
     Uses GITHUB_TOKEN + GITHUB_USERNAME from .env — no user auth required.
@@ -121,6 +125,7 @@ async def publish_project(project_id: str) -> dict[str, str]:
         raise HTTPException(status_code=400, detail="No files to publish yet.")
 
     project_name: str = project.get("name", "Untitled")
+    commit_message: str = body.commit_message or f"Update {project_name} via Context Space"
 
     try:
         result = await push_project_to_github(
@@ -129,6 +134,7 @@ async def publish_project(project_id: str) -> dict[str, str]:
             project_name=project_name,
             project_id=project_id,
             files=files,
+            commit_message=commit_message,
         )
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=502, detail=f"GitHub push failed: {exc}") from exc

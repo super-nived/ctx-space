@@ -92,6 +92,7 @@ async def push_project_to_github(
     project_name: str,
     project_id: str,
     files: dict[str, str],
+    commit_message: str | None = None,
 ) -> dict[str, str]:
     """Push all project files to GitHub as a single commit.
 
@@ -165,7 +166,7 @@ async def push_project_to_github(
 
         # 5. Create a commit
         commit_payload: dict[str, Any] = {
-            "message": f"Update {project_name} via Context Space",
+            "message": commit_message or f"Update {project_name} via Context Space",
             "tree": tree_sha,
         }
         if parent_sha:

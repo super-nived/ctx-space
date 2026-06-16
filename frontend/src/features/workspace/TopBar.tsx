@@ -4,6 +4,7 @@ import { Wordmark } from '@/components/Wordmark';
 import { downloadProjectZip } from '@/features/projects/downloadZip';
 import { projectsApi } from '@/features/projects/projectsApi';
 import { useAgentStatus } from '@/features/agent/useAgentStatus';
+import { useAgent } from '@copilotkit/react-core/v2';
 import { PublishModal } from '@/features/publish/PublishModal';
 import { useProjectStore } from '@/store/projectStore';
 import { useSessionStore } from '@/store/sessionStore';
@@ -190,7 +191,25 @@ export function TopBar({ onToggleMobileView, mobileView, onOpenHistory }: TopBar
   const resetSession = useSessionStore((s) => s.reset);
   const projectId = useSessionStore((s) => s.projectId);
   const { isRunning, phase, lastWrittenFile } = useAgentStatus();
+  const { agent } = useAgent({ agentId: 'ctx_space' });
   const [publishOpen, setPublishOpen] = useState(false);
+
+  // Extract the last user message to use as the default commit message.
+  const lastUserMessage: string = (() => {
+    const msgs: unknown[] = agent?.messages ?? [];
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      const m = msgs[i] as Record<string, unknown>;
+      if (m?.role === 'user') {
+        const content = m.content;
+        if (typeof content === 'string') return content.slice(0, 72);
+        if (Array.isArray(content)) {
+          const text = (content as Record<string, unknown>[]).find((c) => c.type === 'text');
+          if (typeof text?.text === 'string') return text.text.slice(0, 72);
+        }
+      }
+    }
+    return '';
+  })();
 
   const hasFiles = Object.keys(files).length > 0;
   const downloadZip = () => downloadProjectZip(projectName, files);
@@ -272,6 +291,7 @@ export function TopBar({ onToggleMobileView, mobileView, onOpenHistory }: TopBar
         <PublishModal
           projectId={projectId}
           projectName={projectName}
+          defaultCommitMessage={lastUserMessage}
           onClose={() => setPublishOpen(false)}
         />
       )}
