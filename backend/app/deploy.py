@@ -349,6 +349,19 @@ def _render_headers(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}", "Accept": "application/json"}
 
 
+async def _get_render_owner_id(client: httpx.AsyncClient, token: str) -> str:
+    """Return the first owner ID from the Render account."""
+    r = await client.get(
+        f"{_RENDER}/owners?limit=1",
+        headers=_render_headers(token),
+    )
+    r.raise_for_status()
+    owners = r.json()
+    if not owners:
+        raise RuntimeError("No Render owner found for this token.")
+    return owners[0]["owner"]["id"]
+
+
 async def deploy_to_render(
     token: str,
     project_name: str,
@@ -356,21 +369,18 @@ async def deploy_to_render(
     github_repo_url: str,
     existing_service_id: str | None = None,
 ) -> dict[str, str]:
-    """Create or redeploy a Render web service from the GitHub repo.
+    """Create or redeploy a Render static site from the GitHub repo.
 
     Requires the project to have been published to GitHub first.
     Returns service_id and service_url.
     """
-    import re
     slug = re.sub(r"[^a-z0-9]+", "-", project_name.lower()).strip("-") or "ctx-app"
     service_name = f"ctx-{slug}-{project_id[:6]}"
-
-    # Extract owner/repo from URL e.g. https://github.com/user/repo
-    repo_path = github_repo_url.rstrip("/").replace("https://github.com/", "")
+    repo_url = github_repo_url.rstrip("/")
 
     async with httpx.AsyncClient(timeout=60) as client:
         if existing_service_id:
-            # Trigger a new deploy on the existing service
+            # Trigger a redeploy on the existing service
             r = await client.post(
                 f"{_RENDER}/services/{existing_service_id}/deploys",
                 headers=_render_headers(token),
@@ -388,21 +398,23 @@ async def deploy_to_render(
                     "provider": "render",
                 }
 
-        # Create new web service
+        owner_id = await _get_render_owner_id(client, token)
+
+        # Create a static site (Vite builds to dist/)
         payload = {
-            "type": "web_service",
+            "type": "static_site",
             "name": service_name,
-            "repo": f"https://github.com/{repo_path}",
+            "ownerId": owner_id,
+            "repo": repo_url,
             "branch": "main",
-            "buildCommand": "pip install -r requirements.txt",
-            "startCommand": "uvicorn app.main:app --host 0.0.0.0 --port $PORT",
-            "plan": "free",
-            "region": "oregon",
-            "envVars": [],
+            "serviceDetails": {
+                "buildCommand": "npm install && npm run build",
+                "publishPath": "dist",
+            },
         }
         r = await client.post(
             f"{_RENDER}/services",
-            headers=_render_headers(token),
+            headers={**_render_headers(token), "Content-Type": "application/json"},
             json=payload,
         )
         r.raise_for_status()
