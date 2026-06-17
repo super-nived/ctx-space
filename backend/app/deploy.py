@@ -171,6 +171,26 @@ _VITE_ENV_DTS = """\
 """
 
 
+_TAILWIND_V3_PATTERN = re.compile(
+    r"@tailwind\s+(base|components|utilities)\s*;?", re.IGNORECASE
+)
+
+
+def _fix_css(css: str) -> str:
+    """Ensure a CSS file uses Tailwind v4 @import, not v3 @tailwind directives.
+
+    If the file already starts with @import "tailwindcss" it is returned unchanged.
+    If it contains @tailwind directives (v3 syntax) those are stripped and
+    @import "tailwindcss" is prepended instead.
+    If it has neither, @import "tailwindcss" is prepended unconditionally so that
+    Tailwind utilities are always included in the build output.
+    """
+    if '@import "tailwindcss"' in css or "@import 'tailwindcss'" in css:
+        return css
+    cleaned = _TAILWIND_V3_PATTERN.sub("", css).strip()
+    return _INDEX_CSS + ("\n" + cleaned if cleaned else "")
+
+
 def _write_scaffold(project_dir: Path, project_files: dict[str, str]) -> None:
     """Write the Vite scaffold + user generated files into project_dir."""
     (project_dir / "package.json").write_text(_PACKAGE_JSON)
@@ -189,10 +209,6 @@ def _write_scaffold(project_dir: Path, project_files: dict[str, str]) -> None:
     if not has_main:
         (project_dir / "src" / "main.tsx").write_text(_MAIN_TSX)
 
-    has_css = any(p.endswith(".css") for p in project_files)
-    if not has_css:
-        (project_dir / "src" / "index.css").write_text(_INDEX_CSS)
-
     has_vite_env = "src/vite-env.d.ts" in project_files
     if not has_vite_env:
         (project_dir / "src" / "vite-env.d.ts").write_text(_VITE_ENV_DTS)
@@ -200,7 +216,16 @@ def _write_scaffold(project_dir: Path, project_files: dict[str, str]) -> None:
     for path, contents in project_files.items():
         full_path = project_dir / path
         full_path.parent.mkdir(parents=True, exist_ok=True)
+        # Always enforce Tailwind v4 syntax in every CSS file so builds never
+        # silently produce unstyled output due to agent-written v3 directives.
+        if path.endswith(".css"):
+            contents = _fix_css(contents)
         full_path.write_text(contents)
+
+    # If the agent wrote no CSS file at all, create the default one.
+    has_css = any(p.endswith(".css") for p in project_files)
+    if not has_css:
+        (project_dir / "src" / "index.css").write_text(_INDEX_CSS)
 
 
 async def _run(cmd: list[str], cwd: Path) -> None:

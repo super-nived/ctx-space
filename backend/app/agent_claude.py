@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import uuid
 from collections.abc import AsyncIterator
 from typing import Any
@@ -87,6 +88,38 @@ _DISALLOWED_BUILTINS = [
 # In-process MCP server name that hosts our frontend tools. The SDK namespaces
 # its tools as ``mcp__<server>__<tool>``.
 _TOOLS_SERVER = "ctxtools"
+
+# Per-thread DataSpace credential cache.  Maps thread_id -> credential dict.
+# Populated when the agent receives a connectDataSpace form response; re-used
+# on every subsequent run so the user never has to re-enter credentials.
+_dataspace_creds: dict[str, dict[str, str]] = {}
+
+_CRED_KEYS = ("client_id", "client_secret", "company_code", "plant_code")
+
+
+def _extract_creds_from_messages(messages: list[Any]) -> dict[str, str] | None:
+    """Scan message history for a DataSpace credential payload.
+
+    CopilotKit serialises the connectDataSpace form response as JSON inside a
+    user message.  We scan from the most recent message backwards and return
+    the first object that contains all four required credential keys.
+    """
+    for msg in reversed(messages):
+        content = getattr(msg, "content", "") or ""
+        if not isinstance(content, str):
+            continue
+        # Try the whole string first (it may be bare JSON).
+        for text in [content, *re.findall(r"\{.*?\}", content, re.DOTALL)]:
+            text = text.strip()
+            if not text.startswith("{"):
+                continue
+            try:
+                obj = json.loads(text)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(obj, dict) and all(k in obj for k in _CRED_KEYS):
+                return {k: str(obj[k]).strip() for k in _CRED_KEYS}
+    return None
 
 
 def _frontend_tool_full_name(bare: str) -> str:
@@ -432,8 +465,39 @@ class CtxSpaceClaudeAgent:
                 }
             }
 
+        # ── DataSpace credential persistence ──────────────────────────────────
+        # The SDK creates a fresh MCP HTTP session for every query() call, so
+        # configure_dataspace state is lost between runs.  We fix this by:
+        #   1. Scanning incoming messages for a credential payload (form response).
+        #   2. Caching credentials in _dataspace_creds keyed by thread_id.
+        #   3. Prepending a system turn that tells the agent to call
+        #      configure_dataspace immediately, so every run starts configured.
+        thread_id = run_input.thread_id or ""
+        fresh_creds = _extract_creds_from_messages(run_input.messages)
+        if fresh_creds:
+            _dataspace_creds[thread_id] = fresh_creds
+        cached_creds = _dataspace_creds.get(thread_id)
+
         options = self._build_options(run_input, pre_tool_hook)
         prompt_msgs = self._ag_messages_to_sdk(run_input.messages)
+
+        # Inject a credential-reminder turn at the front of the prompt so the
+        # agent calls configure_dataspace before touching any dataspace tool,
+        # without asking the user again.
+        if cached_creds:
+            cred_notice = (
+                "[SYSTEM — DataSpace credentials already provided by the user]\n"
+                "Call `configure_dataspace` RIGHT NOW with the following values "
+                "before calling any other dataspace tool.  Do NOT show the "
+                "connectDataSpace form — credentials are already known:\n"
+                + json.dumps({**cached_creds, "environment": self._settings.mcp_environment}, indent=2)
+                + "\nCall configure_dataspace immediately, then proceed with the "
+                "user's request."
+            )
+            prompt_msgs = [
+                {"type": "user", "message": {"role": "user", "content": cred_notice}},
+                *prompt_msgs,
+            ]
 
         async def prompt_stream() -> AsyncIterator[dict[str, Any]]:
             for m in prompt_msgs:
